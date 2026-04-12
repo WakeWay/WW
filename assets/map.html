@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    body, html {
+      height: 100%;
+      width: 100%;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+    }
+    #map {
+      height: 100%;
+      width: 100%;
+    }
+    .info {
+      padding: 6px 8px;
+      font: 14px/16px Arial, Helvetica, sans-serif;
+      background: white;
+      background: rgba(255,255,255,0.9);
+      box-shadow: 0 0 15px rgba(0,0,0,0.2);
+      border-radius: 5px;
+    }
+    .marker-info {
+      position: absolute;
+      bottom: 20px;
+      left: 10px;
+      background: white;
+      padding: 10px;
+      border-radius: 5px;
+      box-shadow: 0 0 10px rgba(0,0,0,0.2);
+      font-size: 12px;
+    }
+  </style>
+</head>
+<body>
+  <div id="map"></div>
+  <script>
+    // Initialize map centered on India
+    const map = L.map('map').setView([20.5937, 78.9629], 5);
+    
+    // Add OpenStreetMap tiles
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      maxZoom: 19,
+      attribution: '© OpenStreetMap contributors',
+      accessToken: 'pk.eyJ1IjoiZXhhbXBsZSIsImEiOiJjbGV4YW1wbGUifQ.example'
+    }).addTo(map);
+    
+    let selectedMarker = null;
+    let selectedLocation = null;
+    
+    // Handle map clicks
+    map.on('click', function(e) {
+      const lat = e.latlng.lat;
+      const lng = e.latlng.lng;
+      
+      // Remove previous marker
+      if (selectedMarker) {
+        map.removeLayer(selectedMarker);
+      }
+      
+      // Add new marker
+      selectedMarker = L.marker([lat, lng], {
+        icon: L.icon({
+          iconUrl: 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyNCIgaGVpZ2h0PSIyNCIgdmlld0JveD0iMCAwIDI0IDI0Ij48cGF0aCBkPSJNMTIgMEM2LjQ4IDAgMiA0LjQ4IDIgMTBjMCA1LjY5IDEwIDEzIDEwIDEzczEwLTcuMzEgMTAtMTNjMC01LjUyLTQuNDgtMTAtMTAtMTB6bTAgMTdjLTMuODYgMC03LTMuMTQtNy03czMuMTQtNyA3LTcgNyAzLjE0IDcgNy0zLjE0IDctNyA3eiIgZmlsbD0iIzAwNzRFNiIvPjwvc3ZnPg==',
+          iconSize: [32, 32],
+          iconAnchor: [16, 32]
+        })
+      }).addTo(map).bindPopup(`Selected: ${lat.toFixed(4)}, ${lng.toFixed(4)}`).openPopup();
+      
+      selectedLocation = {lat, lng};
+      
+      // Send to React Native
+      window.ReactNativeWebView.postMessage(JSON.stringify({
+        type: 'location_selected',
+        latitude: lat,
+        longitude: lng
+      }));
+    });
+    
+    // Handle location from React Native
+    document.addEventListener('message', function(event) {
+      const data = JSON.parse(event.data);
+      if (data.type === 'set_center') {
+        map.setView([data.latitude, data.longitude], 13);
+        
+        // Add current location marker in blue
+        if (map.currentLocMarker) {
+          map.removeLayer(map.currentLocMarker);
+        }
+        map.currentLocMarker = L.marker([data.latitude, data.longitude], {
+          icon: L.icon({
+            iconUrl: 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyNCIgaGVpZ2h0PSIyNCIgdmlld0JveD0iMCAwIDI0IDI0Ij48Y2lyY2xlIGN4PSIxMiIgY3k9IjEyIiByPSI4IiBmaWxsPSIjMDA3NEU2Ii8+PHBhdGggZD0iTTEyIDJDNi40OCAyIDIgNi40OCAyIDEyczQuNDggMTAgMTAgMTAgMTAtNC40OCAxMC0xMFMxNy41MiAyIDEyIDJ6bTAgMThjLTQuNDEgMC04LTMuNTktOC04czMuNTktOCA4LTggOCAzLjU5IDggOC0zLjU5IDgtOCA4eiIgZmlsbD0iIzAwNzRFNiIvPjwvc3ZnPg==',
+            iconSize: [24, 24],
+            iconAnchor: [12, 12]
+          })
+        }).addTo(map).bindPopup('Current Location').openPopup();
+      }
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <style>
+        * { margin: 0; padding: 0; }
+        body { height: 100vh; }
+        #map { width: 100%; height: 100%; }
+        .info {
+            padding: 6px 8px;
+            font: 14px/16px Arial, Helvetica, sans-serif;
+            background: white;
+            background: rgba(255,255,255,0.8);
+            box-shadow: 0 0 15px rgba(0,0,0,0.2);
+            border-radius: 5px;
+        }
+        .current-marker {
+            color: blue;
+        }
+        .selected-marker {
+            color: red;
+        }
+    </style>
+</head>
+<body>
+    <div id="map"></div>
+    <script>
+        // Initialize map centered on India
+        const map = L.map('map').setView([20.5937, 78.9629], 5);
+        
+        // Use OpenStreetMap tiles
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '© OpenStreetMap contributors',
+            maxZoom: 19
+        }).addTo(map);
+        
+        let currentMarker = null;
+        let selectedMarker = null;
+        
+        // Listen for location updates from React
+        window.addEventListener('message', (event) => {
+            const data = event.data;
+            
+            if (data.type === 'setLocation') {
+                const { latitude, longitude, title } = data;
+                
+                // Remove existing current marker
+                if (currentMarker) {
+                    map.removeLayer(currentMarker);
+                }
+                
+                // Add new current location marker
+                currentMarker = L.circleMarker([latitude, longitude], {
+                    radius: 8,
+                    fillColor: "#007AFF",
+                    color: "#007AFF",
+                    weight: 2,
+                    opacity: 0.8,
+                    fillOpacity: 0.8
+                }).addTo(map);
+                
+                currentMarker.bindPopup(title || 'Current Location');
+                
+                // Center map on location
+                map.setView([latitude, longitude], 13);
+            }
+        });
+        
+        // Handle map clicks - send selected location to React
+        map.on('click', (e) => {
+            const { lat, lng } = e.latlng;
+            
+            // Remove existing selected marker
+            if (selectedMarker) {
+                map.removeLayer(selectedMarker);
+            }
+            
+            // Add new selected marker
+            selectedMarker = L.marker([lat, lng], {
+                title: 'Selected Destination'
+            }).addTo(map);
+            
+            selectedMarker.bindPopup('Destination: ' + lat.toFixed(4) + ', ' + lng.toFixed(4));
+            selectedMarker.openPopup();
+            
+            // Send location back to React
+            window.ReactNativeWebView.postMessage(JSON.stringify({
+                type: 'locationSelected',
+                latitude: lat,
+                longitude: lng
+            }));
+        });
+        
+        // Notify React that map is ready
+        window.ReactNativeWebView.postMessage(JSON.stringify({
+            type: 'mapReady'
+        }));
+    </script>
+</body>
+</html>
