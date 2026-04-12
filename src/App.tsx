@@ -8,6 +8,7 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { Text, Animated, StyleSheet, Image, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { StatusBar } from 'expo-status-bar';
 import * as SplashScreen from 'expo-splash-screen';
 import { useAppLifecycle } from '@hooks/useTracking';
 import { useTheme } from '@hooks/useTheme';
@@ -64,16 +65,6 @@ const HomeStackNavigator = () => {
         name="HomeTab"
         component={HomeScreen}
         options={{ title: 'WakeWay' }}
-      />
-      <Stack.Screen
-        name="TripSetup"
-        component={TripSetupScreen}
-        options={{ title: 'New Trip' }}
-      />
-      <Stack.Screen
-        name="Map"
-        component={MapScreen}
-        options={{ title: 'Select Destination' }}
       />
     </Stack.Navigator>
   );
@@ -161,6 +152,24 @@ const RootNavigator = () => {
           headerShown: false,
         }}
       />
+      
+      {/* Full-screen feature layers over the Tabs */}
+      <Stack.Screen
+        name="TripSetup"
+        component={TripSetupScreen}
+        options={{
+          headerShown: false,
+          presentation: 'card',
+        }}
+      />
+      <Stack.Screen
+        name="Map"
+        component={MapScreen}
+        options={{
+          headerShown: false,
+          presentation: 'card',
+        }}
+      />
       {isAlarmActive && (
         <Stack.Screen
           name="Alarm"
@@ -227,7 +236,8 @@ const App = () => {
   };
 
   return (
-    <View style={{ flex: 1 }}>
+    <View style={{ flex: 1, backgroundColor: isDark ? '#0F172A' : '#F8FAFC' }}>
+      <StatusBar style={isDark ? "light" : "dark"} backgroundColor="transparent" translucent={true} />
       <AlertProvider>
         <NavigationContainer theme={isDark ? CustomDarkTheme : CustomLightTheme}>
           {isLoggedIn ? <RootNavigator /> : <AuthStackNavigator />}
