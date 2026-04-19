@@ -2,15 +2,10 @@ import React, { useState, useEffect } from 'react';
 import { View, StyleSheet, Text, TextInput, TouchableOpacity, SafeAreaView, KeyboardAvoidingView, Platform, ActivityIndicator, Image, StatusBar } from 'react-native';
 import { useAuthStore } from '@store/useAuthStore';
 import { useTheme } from '@hooks/useTheme';
-import { checkTermsAccepted, setTermsAccepted as saveTerms } from '@utils/storage';
-import TermsModal from '@components/TermsModal';
 
-const LoginScreen = () => {
+const LoginScreen = ({ navigation }: any) => {
   const [email, setEmail] = useState('');
   const [otp, setOtp] = useState('');
-  const [termsAccepted, setTermsAccepted] = useState(false);
-  const [showTermsModal, setShowTermsModal] = useState(false);
-  const [termsInitialized, setTermsInitialized] = useState(false);
   
   const { colors } = useTheme();
   const styles = getStyles(colors);
@@ -25,30 +20,8 @@ const LoginScreen = () => {
   const clearError = useAuthStore(state => state.clearError);
 
   useEffect(() => {
-    const initTerms = async () => {
-      const isAccepted = await checkTermsAccepted();
-      setTermsAccepted(isAccepted);
-      if (!isAccepted) {
-        setShowTermsModal(true);
-      }
-      setTermsInitialized(true);
-    };
-    initTerms();
-
     return () => resetOtpState(); // Reset when leaving
   }, [resetOtpState]);
-
-  const handleAcceptTerms = async () => {
-    await saveTerms(true);
-    setTermsAccepted(true);
-    setShowTermsModal(false);
-  };
-
-  const handleDeclineTerms = async () => {
-    await saveTerms(false);
-    setTermsAccepted(false);
-    setShowTermsModal(false);
-  };
 
   const handleAction = async () => {
     if (!email) return;
@@ -123,9 +96,9 @@ const LoginScreen = () => {
           )}
 
           <TouchableOpacity 
-            style={[styles.button, (!email || (otpSent && !otp) || !termsAccepted) && styles.buttonDisabled]} 
+            style={[styles.button, (!email || (otpSent && !otp)) && styles.buttonDisabled]} 
             onPress={handleAction}
-            disabled={(!email || (otpSent && !otp)) || isLoading || !termsAccepted}
+            disabled={(!email || (otpSent && !otp)) || isLoading}
           >
             {isLoading ? (
               <ActivityIndicator color="#FFFFFF" />
@@ -143,21 +116,13 @@ const LoginScreen = () => {
           )}
 
           <View style={[styles.footer, { marginTop: otpSent ? 16 : 32 }]}>
-            <TouchableOpacity onPress={() => setShowTermsModal(true)}>
-              <Text style={[styles.footerLink, { color: termsAccepted ? colors.textSecondary : colors.danger, fontSize: 13, textDecorationLine: 'underline' }]}>
-                {termsAccepted ? 'Review Terms & Conditions' : '⚠️ Action Required: Accept Terms & Conditions'}
-              </Text>
+            <Text style={styles.footerText}>Don't have an account? </Text>
+            <TouchableOpacity onPress={() => navigation.navigate('Signup')}>
+              <Text style={styles.footerLink}>Sign Up</Text>
             </TouchableOpacity>
           </View>
         </View>
 
-        {termsInitialized && (
-          <TermsModal 
-            visible={showTermsModal} 
-            onAccept={handleAcceptTerms} 
-            onDecline={handleDeclineTerms}
-          />
-        )}
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
@@ -254,6 +219,10 @@ const getStyles = (colors: any) => StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'center',
     marginTop: 32,
+  },
+  footerText: {
+    color: colors.textSecondary,
+    fontSize: 15,
   },
   footerLink: {
     color: colors.primary,

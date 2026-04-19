@@ -192,7 +192,7 @@ export const useTripStore = create<TripStoreType>((set: any, get: any) => ({
       const authState = useAuthStore.getState();
       if (authState.user && authState.token) {
         // NOTE: In production or a real device, change localhost to your computer's IP
-        fetch('http://192.168.1.20:3000/api/trips/history', {
+        fetch('https://wakeway.onrender.com/api/trips/history', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -265,6 +265,12 @@ export const useTripStore = create<TripStoreType>((set: any, get: any) => ({
   dismissAlarm: () => {
     set((state: TripStore) => {
       if (!state.activeTrip) return state;
+
+      // Only dismiss if it was actually triggered
+      if (!state.activeTrip.alarmTriggered && !state.activeTrip.alarmTriggerTime) {
+        return state;
+      }
+
       return {
         activeTrip: {
           ...state.activeTrip,
@@ -317,7 +323,7 @@ export const useTripStore = create<TripStoreType>((set: any, get: any) => ({
       const authState = useAuthStore.getState();
       if (authState.user && authState.token) {
         // NOTE: In production or a real device, change localhost to your computer's IP
-        fetch('http://192.168.1.20:3000/api/trips/history', {
+        fetch('https://wakeway.onrender.com/api/trips/history', {
            method: 'DELETE',
            headers: { 'Authorization': `Bearer ${authState.token}` }
         }).catch(err => console.error('Failed to clear trip history on backend', err));
@@ -336,7 +342,7 @@ export const useTripStore = create<TripStoreType>((set: any, get: any) => ({
 
       const authState = useAuthStore.getState();
       if (authState.user && authState.token) {
-        fetch(`http://192.168.1.20:3000/api/trips/history/${tripId}`, {
+        fetch(`https://wakeway.onrender.com/api/trips/history/${tripId}`, {
            method: 'DELETE',
            headers: { 'Authorization': `Bearer ${authState.token}` }
         }).catch(err => console.error('Failed to delete trip on backend', err));
@@ -386,7 +392,7 @@ export const useTripStore = create<TripStoreType>((set: any, get: any) => ({
       
       if (authState.user && authState.token) {
         try {
-          const res = await fetch('http://192.168.1.20:3000/api/trips/history', {
+          const res = await fetch('https://wakeway.onrender.com/api/trips/history', {
              headers: { 'Authorization': `Bearer ${authState.token}` }
           });
           const data = await res.json();
@@ -452,7 +458,7 @@ export const useTripStore = create<TripStoreType>((set: any, get: any) => ({
       const authState = useAuthStore.getState();
       if (authState.user && authState.token) {
         // NOTE: In production or a real device, change localhost to your computer's IP
-        fetch('http://192.168.1.20:3000/api/trips/history', {
+        fetch('https://wakeway.onrender.com/api/trips/history', {
            method: 'DELETE',
            headers: { 'Authorization': `Bearer ${authState.token}` }
         }).catch(err => console.error('Failed to clear trip history on backend', err));

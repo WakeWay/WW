@@ -12,6 +12,7 @@ import {
   Switch,
   Platform,
   StatusBar,
+  TextInput,
 } from 'react-native';
 import Slider from '@react-native-community/slider';
 import { useTripStore } from '@store/useTripStore';
@@ -102,8 +103,14 @@ const TripSetupScreen = ({ navigation, route }: any) => {
       <ScrollView style={styles.scroll}>
         {/* Destination Card */}
         <Card style={styles.destinationCard}>
-          <Text style={styles.sectionLabel}>📍 Destination</Text>
-          <Text style={styles.destinationName}>{destinationName}</Text>
+          <Text style={styles.sectionLabel}>📍 Trip Name</Text>
+          <TextInput
+            style={styles.destinationInput}
+            value={destinationName}
+            onChangeText={setDestinationName}
+            placeholder="Name your trip..."
+            placeholderTextColor={colors.textSecondary}
+          />
           <Button
             title="Change Location"
             variant="outline"
@@ -239,11 +246,15 @@ const getStyles = (colors: any) => StyleSheet.create({
     borderLeftWidth: 4,
     borderLeftColor: colors.primary,
   },
-  destinationName: {
+  destinationInput: {
     fontSize: 20,
     fontWeight: 'bold',
     color: colors.text,
     marginVertical: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+    paddingBottom: 4,
+    paddingTop: 8,
   },
   changeButton: {
     marginTop: 12,

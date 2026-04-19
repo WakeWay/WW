@@ -26,6 +26,7 @@ import { useTripStore } from '@store/useTripStore';
 import { useLocationPermissions } from '@hooks/useTracking';
 import { useTheme } from '@hooks/useTheme';
 import { useAuthStore } from '@store/useAuthStore';
+import TermsModal from '@components/TermsModal';
 import { Card, Button, COLORS as DEFAULT_COLORS } from '@components/UIComponents';
 import { DEFAULT_RADIUS_METERS, RADIUS_OPTIONS } from '@/constants';
 import { useAlert } from '../providers/AlertProvider';
@@ -39,6 +40,7 @@ const SettingsScreen = () => {
   const [showDeactivateModal, setShowDeactivateModal] = useState(false);
   const [deactivateOtp, setDeactivateOtp] = useState('');
   const [isDeactivating, setIsDeactivating] = useState(false);
+  const [showTermsModal, setShowTermsModal] = useState(false);
 
   const { permissions, requestForegroundPermission, requestBackgroundPermission } =
     useLocationPermissions();
@@ -337,6 +339,13 @@ const SettingsScreen = () => {
             <Text style={styles.infoLabel}>Developer</Text>
             <Text style={styles.infoValue}>WakeWay Team</Text>
           </View>
+
+          <View style={styles.infoDivider} />
+
+          <TouchableOpacity style={styles.infoItem} onPress={() => setShowTermsModal(true)}>
+            <Text style={styles.infoLabel}>Terms & Conditions</Text>
+            <Icon name="chevron-forward" size={16} color={colors.textSecondary} />
+          </TouchableOpacity>
         </Card>
 
         {/* Footer */}
@@ -387,6 +396,12 @@ const SettingsScreen = () => {
           </View>
         </View>
       </Modal>
+
+      <TermsModal 
+        visible={showTermsModal} 
+        onClose={() => setShowTermsModal(false)}
+        viewOnly={true}
+      />
 
     </SafeAreaView>
   );

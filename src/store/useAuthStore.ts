@@ -30,7 +30,7 @@ interface AuthActions {
 
 // Ensure this matches your backend IP or localhost! 
 // Note: If testing on a physical android device, you may need to replace localhost with your computer's local IP address (e.g. 192.168.1.16)
-const API_URL = 'http://192.168.1.20:3000/api';
+const API_URL = 'https://wakeway.onrender.com/api';
 
 const initialState: AuthState = {
   user: null,

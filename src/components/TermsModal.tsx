@@ -5,13 +5,15 @@ import { useTheme } from '@hooks/useTheme';
 
 interface TermsModalProps {
   visible: boolean;
-  onAccept: () => void;
-  onDecline: () => void;
+  onAccept?: () => void;
+  onDecline?: () => void;
+  onClose?: () => void;
+  viewOnly?: boolean;
 }
 
 const { height: screenHeight } = Dimensions.get('window');
 
-const TermsModal: React.FC<TermsModalProps> = ({ visible, onAccept, onDecline }) => {
+const TermsModal: React.FC<TermsModalProps> = ({ visible, onAccept, onDecline, onClose, viewOnly = false }) => {
   const { colors } = useTheme();
   // We explicitly override the background for the glassmorphic look
   const styles = getStyles(colors);
@@ -48,12 +50,20 @@ const TermsModal: React.FC<TermsModalProps> = ({ visible, onAccept, onDecline })
         </ScrollView>
 
         <View style={styles.footer}>
-          <TouchableOpacity style={styles.actionButton} onPress={onDecline}>
-            <Text style={styles.declineText}>Decline</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={[styles.actionButton, styles.acceptButton]} onPress={onAccept}>
-            <Text style={styles.acceptText}>Accept</Text>
-          </TouchableOpacity>
+          {viewOnly ? (
+            <TouchableOpacity style={[styles.actionButton, styles.closeButton]} onPress={onClose}>
+              <Text style={styles.closeText}>Close</Text>
+            </TouchableOpacity>
+          ) : (
+            <>
+              <TouchableOpacity style={styles.actionButton} onPress={onDecline}>
+                <Text style={styles.declineText}>Decline</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={[styles.actionButton, styles.acceptButton]} onPress={onAccept}>
+                <Text style={styles.acceptText}>Accept</Text>
+              </TouchableOpacity>
+            </>
+          )}
         </View>
         </View>
       </BlurView>
@@ -156,6 +166,14 @@ const getStyles = (colors: any) => StyleSheet.create({
     fontSize: 15,
     fontWeight: 'bold',
     color: '#FFFFFF',
+  },
+  closeButton: {
+    backgroundColor: colors.surface,
+  },
+  closeText: {
+    fontSize: 15,
+    fontWeight: 'bold',
+    color: colors.text,
   },
 });
 
