@@ -12,6 +12,7 @@ const STORAGE_KEYS = {
   ACTIVE_TRIP: '@wakeway_active_trip',
   SETTINGS: '@wakeway_settings',
   ERROR_LOG: '@wakeway_error_log',
+  TERMS_ACCEPTED: '@wakeway_terms_accepted',
 };
 
 // Debounce timers and pending data for writes
@@ -173,5 +174,48 @@ export const clearAllStorage = async (): Promise<void> => {
   } catch (error) {
     console.error('Failed to clear storage:', error);
     throw error;
+  }
+};
+
+/**
+ * Clear only session-related storage (trips, history) to preserve settings on logout
+ */
+export const clearSessionData = async (): Promise<void> => {
+  try {
+    await AsyncStorage.multiRemove([
+      STORAGE_KEYS.TRIPS,
+      STORAGE_KEYS.TRIP_HISTORY,
+      STORAGE_KEYS.ACTIVE_TRIP
+    ]);
+  } catch (error) {
+    console.error('Failed to clear session data:', error);
+    throw error;
+  }
+};
+
+/**
+ * Check if the user has formally accepted the Terms & Conditions
+ */
+export const checkTermsAccepted = async (): Promise<boolean> => {
+  try {
+    const data = await AsyncStorage.getItem(STORAGE_KEYS.TERMS_ACCEPTED);
+    return data === 'true';
+  } catch (error) {
+    return false;
+  }
+};
+
+/**
+ * Set the user's Terms & Conditions acceptance status
+ */
+export const setTermsAccepted = async (accepted: boolean): Promise<void> => {
+  try {
+    if (accepted) {
+      await AsyncStorage.setItem(STORAGE_KEYS.TERMS_ACCEPTED, 'true');
+    } else {
+      await AsyncStorage.removeItem(STORAGE_KEYS.TERMS_ACCEPTED);
+    }
+  } catch (error) {
+    console.error('Failed to save terms status:', error);
   }
 };

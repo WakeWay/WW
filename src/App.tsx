@@ -214,6 +214,10 @@ const App = () => {
   useEffect(() => {
     const initApp = async () => {
       await restoreSession();
+      
+      // Ensure cloud trips are pulled down specifically using the newly restored token
+      await useTripStore.getState().restoreAppState();
+      
       setIsReady(true);
       // Hide the native splash screen immediately when app renders and auth is checked
       SplashScreen.hideAsync().catch(() => {});

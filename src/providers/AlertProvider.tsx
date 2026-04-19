@@ -42,10 +42,6 @@ export const AlertProvider = ({ children }: { children: ReactNode }) => {
 
   const hideAlert = () => {
     setVisible(false);
-    // Delay wiping config slightly to keep text visible during exit animation
-    setTimeout(() => {
-      setConfig({});
-    }, 400);
   };
 
   return (

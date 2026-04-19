@@ -5,6 +5,7 @@
 
 import { create } from 'zustand';
 import * as Crypto from 'expo-crypto';
+import { useAuthStore } from './useAuthStore';
 import type {
   TripStore,
   Trip,
@@ -67,9 +68,11 @@ interface TripStoreActions {
   
   // Permissions
   updatePermissions: (permissions: Partial<PermissionsState>) => void;
-  
-  // Settings
-  updateSettings: (settings: Partial<AppSettings>) => void;
+  saveTrips: (trips: Trip[]) => void;
+  saveTripHistory: (entry: TripHistory[]) => void;
+  clearTripHistory: () => void;
+  deleteTrip: (tripId: string) => void;
+  updateSettings: (newSettings: Partial<AppSettings>) => void;
   loadAppSettings: () => Promise<void>;
   
   // Error handling
@@ -78,7 +81,7 @@ interface TripStoreActions {
   // State restoration
   restoreAppState: () => Promise<void>;
   clearAppData: () => Promise<void>;
-  clearTripHistory: () => void;
+  clearSessionData: () => Promise<void>;
   
   // Loading
   setIsLoadingLocation: (loading: boolean) => void;
@@ -173,7 +176,7 @@ export const useTripStore = create<TripStoreType>((set: any, get: any) => ({
         radiusMeters: endedTrip.radiusMeters,
         startTime: endedTrip.startTime,
         endTime: endedTrip.endTime!,
-        alarmTriggered: endedTrip.alarmTriggered,
+        alarmTriggered: Boolean(endedTrip.alarmTriggerTime || endedTrip.alarmDismissed || endedTrip.alarmTriggered),
         alarmTriggerTime: endedTrip.alarmTriggerTime,
       };
 
@@ -181,9 +184,30 @@ export const useTripStore = create<TripStoreType>((set: any, get: any) => ({
         trip.id === endedTrip.id ? endedTrip : trip
       );
 
-      saveTripHistory([...get().tripHistory, historyEntry]).catch((error) => {
+      const newHistory = [...get().tripHistory, historyEntry];
+      saveTripHistory(newHistory).catch((error) => {
         console.error('Failed to save trip history:', error);
       });
+
+      const authState = useAuthStore.getState();
+      if (authState.user && authState.token) {
+        // NOTE: In production or a real device, change localhost to your computer's IP
+        fetch('http://192.168.1.20:3000/api/trips/history', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${authState.token}`
+          },
+          body: JSON.stringify({
+            tripId: historyEntry.tripId,
+            destinationName: historyEntry.destinationName,
+            radiusMeters: historyEntry.radiusMeters,
+            startTime: historyEntry.startTime,
+            endTime: historyEntry.endTime,
+            alarmTriggered: historyEntry.alarmTriggered
+          })
+        }).catch(err => console.error('Failed to sync trip to custom backend:', err));
+      }
 
       saveTrips(updatedTrips).catch((error) => {
         console.error('Failed to persist trips:', error);
@@ -208,20 +232,6 @@ export const useTripStore = create<TripStoreType>((set: any, get: any) => ({
 
   stopTracking: () => {
     set({ isTrackingActive: false });
-  },
-
-  deleteTrip: (tripId: string) => {
-    set((state: TripStore) => {
-      const filteredTrips = state.trips.filter((trip: Trip) => trip.id !== tripId);
-      saveTrips(filteredTrips).catch((error) => {
-        console.error('Failed to delete trip:', error);
-      });
-
-      return {
-        trips: filteredTrips,
-        activeTrip: state.activeTrip?.id === tripId ? null : state.activeTrip,
-      };
-    });
   },
 
   updateCurrentLocation: (location: LocationData) => {
@@ -288,9 +298,57 @@ export const useTripStore = create<TripStoreType>((set: any, get: any) => ({
     }));
   },
 
-  updateSettings: (settings: Partial<AppSettings>) => {
+  saveTrips: (trips: Trip[]) => {
+    set({ trips });
+    saveTrips(trips).catch(console.error);
+  },
+
+  saveTripHistory: (entry: TripHistory[]) => {
+    set({ tripHistory: entry });
+    saveTripHistory(entry).catch(console.error);
+  },
+
+  clearTripHistory: () => {
     set((state: TripStore) => {
-      const updated = { ...state.settings, ...settings };
+      saveTripHistory([]).catch((error) => {
+        console.error('Failed to clear trip history:', error);
+      });
+
+      const authState = useAuthStore.getState();
+      if (authState.user && authState.token) {
+        // NOTE: In production or a real device, change localhost to your computer's IP
+        fetch('http://192.168.1.20:3000/api/trips/history', {
+           method: 'DELETE',
+           headers: { 'Authorization': `Bearer ${authState.token}` }
+        }).catch(err => console.error('Failed to clear trip history on backend', err));
+      }
+
+      return { tripHistory: [] };
+    });
+  },
+
+  deleteTrip: (tripId: string) => {
+    set((state: TripStore) => {
+      const newHistory = state.tripHistory.filter(t => t.tripId !== tripId);
+      saveTripHistory(newHistory).catch((error) => {
+        console.error('Failed to update trip history locally:', error);
+      });
+
+      const authState = useAuthStore.getState();
+      if (authState.user && authState.token) {
+        fetch(`http://192.168.1.20:3000/api/trips/history/${tripId}`, {
+           method: 'DELETE',
+           headers: { 'Authorization': `Bearer ${authState.token}` }
+        }).catch(err => console.error('Failed to delete trip on backend', err));
+      }
+
+      return { tripHistory: newHistory };
+    });
+  },
+
+  updateSettings: (newSettings: Partial<AppSettings>) => {
+    set((state: TripStore) => {
+      const updated = { ...state.settings, ...newSettings };
       saveSettings(updated).catch((error) => {
         console.error('Failed to save settings:', error);
       });
@@ -316,12 +374,39 @@ export const useTripStore = create<TripStoreType>((set: any, get: any) => ({
 
   restoreAppState: async () => {
     try {
-      const [activeTrip, trips, tripHistory, settings] = await Promise.all([
+      const [activeTrip, trips, localTripHistory, settings] = await Promise.all([
         loadActiveTrip(),
         loadTrips(),
         loadTripHistory(),
         loadSettings(),
       ]);
+
+      let tripHistory = localTripHistory || [];
+      const authState = useAuthStore.getState();
+      
+      if (authState.user && authState.token) {
+        try {
+          const res = await fetch('http://192.168.1.20:3000/api/trips/history', {
+             headers: { 'Authorization': `Bearer ${authState.token}` }
+          });
+          const data = await res.json();
+          if (res.ok && data.trips && Array.isArray(data.trips)) {
+             tripHistory = data.trips.map((row: any) => ({
+               tripId: row.trip_id,
+               destination: { latitude: 0, longitude: 0 },
+               destinationName: row.destination_name,
+               radiusMeters: row.radius_meters,
+               startTime: new Date(row.start_time).getTime(),
+               endTime: new Date(row.end_time).getTime(),
+               alarmTriggered: row.alarm_triggered
+             }));
+             // Sync down to local storage
+             require('@utils/storage').saveTripHistory(tripHistory).catch(() => {});
+          }
+        } catch (e) {
+          console.error('Failed to fetch remote history', e);
+        }
+      }
 
       set({
         activeTrip,
@@ -344,11 +429,35 @@ export const useTripStore = create<TripStoreType>((set: any, get: any) => ({
     }
   },
 
+  clearSessionData: async () => {
+    const { clearSessionData } = require('@utils/storage');
+    try {
+      await clearSessionData();
+      set({
+        activeTrip: null,
+        trips: [],
+        tripHistory: []
+      });
+    } catch (error) {
+      console.error('Failed to clear session data:', error);
+    }
+  },
+
   clearTripHistory: () => {
     set((state: TripStore) => {
       saveTripHistory([]).catch((error) => {
         console.error('Failed to clear trip history:', error);
       });
+
+      const authState = useAuthStore.getState();
+      if (authState.user && authState.token) {
+        // NOTE: In production or a real device, change localhost to your computer's IP
+        fetch('http://192.168.1.20:3000/api/trips/history', {
+           method: 'DELETE',
+           headers: { 'Authorization': `Bearer ${authState.token}` }
+        }).catch(err => console.error('Failed to clear trip history on backend', err));
+      }
+
       return { tripHistory: [] };
     });
   },

@@ -1,11 +1,6 @@
-/**
- * Temporary Icon component using emoji instead of vector-icons
- * This bypasses the font loading issues with Ionicons
- */
-
 import React from 'react';
-import { Text, StyleProp, TextStyle } from 'react-native';
-import { getEmojiIcon } from '@utils/iconMapper';
+import { StyleProp, TextStyle } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 
 interface IconProps {
   name: string;
@@ -14,22 +9,23 @@ interface IconProps {
   style?: StyleProp<TextStyle>;
 }
 
+// A quick mapping for icons that don't perfectly exist in Ionicons 
+// (or might throw a type error if dynamically string evaluated)
+const iconFallbackMap: Record<string, keyof typeof Ionicons.glyphMap> = {
+  'sleep': 'moon',
+  'edit': 'pencil',
+};
+
 export const Icon: React.FC<IconProps> = ({ name, size = 24, color, style }) => {
-  const emoji = getEmojiIcon(name);
+  const iconName = (iconFallbackMap[name] || name) as keyof typeof Ionicons.glyphMap;
 
   return (
-    <Text
-      style={[
-        {
-          fontSize: size,
-          color: color,
-          lineHeight: size * 1.3,
-        },
-        style,
-      ]}
-    >
-      {emoji}
-    </Text>
+    <Ionicons 
+      name={iconName} 
+      size={size} 
+      color={color} 
+      style={style} 
+    />
   );
 };
 

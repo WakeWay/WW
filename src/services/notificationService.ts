@@ -199,7 +199,7 @@ class NotificationService {
     
     try {
       if (Vibration && Vibration.vibrate) {
-        Vibration.vibrate(pattern);
+        Vibration.vibrate(pattern, true);
       }
     } catch (error) {
       console.error('Failed to vibrate device:', error);
@@ -211,6 +211,11 @@ class NotificationService {
    */
   async stopHardwareAlarm(): Promise<void> {
     try {
+      // Stop vibration
+      if (Platform.OS !== 'web' && Vibration && Vibration.cancel) {
+        Vibration.cancel();
+      }
+
       // Stop sound
       if (this.alarmSound) {
         const status = await this.alarmSound.getStatusAsync();

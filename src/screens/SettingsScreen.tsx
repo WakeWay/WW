@@ -14,6 +14,9 @@ import {
   Platform,
   StatusBar,
   Linking,
+  Modal,
+  TextInput,
+  ActivityIndicator
 } from 'react-native';
 import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system';
@@ -33,6 +36,10 @@ const SettingsScreen = () => {
   const { showAlert } = useAlert();
   const styles = getStyles(colors);
 
+  const [showDeactivateModal, setShowDeactivateModal] = useState(false);
+  const [deactivateOtp, setDeactivateOtp] = useState('');
+  const [isDeactivating, setIsDeactivating] = useState(false);
+
   const { permissions, requestForegroundPermission, requestBackgroundPermission } =
     useLocationPermissions();
 
@@ -44,21 +51,7 @@ const SettingsScreen = () => {
     store.updateSettings({ defaultRadius: radius });
   };
 
-  const handleClearHistory = () => {
-    showAlert({
-      title: 'Clear History',
-      message: 'Are you sure you want to delete all trip history?',
-      showCancelButton: true,
-      confirmText: 'Clear',
-      confirmButtonColor: colors.danger,
-      onConfirm: () => {
-        store.clearTripHistory();
-        setTimeout(() => {
-          showAlert({ title: 'Success', message: 'Trip history cleared' });
-        }, 500);
-      }
-    });
-  };
+
 
   const handleLogout = () => {
     showAlert({
@@ -68,9 +61,48 @@ const SettingsScreen = () => {
       confirmText: 'Log Out',
       confirmButtonColor: colors.danger,
       onConfirm: () => {
-        useAuthStore.getState().logout();
+        setTimeout(() => {
+          useAuthStore.getState().logout();
+        }, 300);
       }
     });
+  };
+
+  const handleDeactivateRequest = () => {
+    showAlert({
+      title: 'Deactivate Account',
+      message: 'This will permanently delete your account and all history. An OTP will be sent to confirm.',
+      showCancelButton: true,
+      confirmText: 'Send Code',
+      confirmButtonColor: colors.danger,
+      onConfirm: async () => {
+        const email = useAuthStore.getState().user?.email;
+        if (email) {
+          setShowDeactivateModal(true);
+          setDeactivateOtp('');
+          try {
+            await useAuthStore.getState().requestOtp(email, 'deactivate');
+          } catch (e: any) {
+            setShowDeactivateModal(false);
+            showAlert({ title: 'Error', message: 'Failed to request OTP' });
+          }
+        }
+      }
+    });
+  };
+
+  const handleDeactivateConfirm = async () => {
+    if (!deactivateOtp || deactivateOtp.length < 6) return;
+    setIsDeactivating(true);
+    try {
+      await useAuthStore.getState().deactivateAccount(deactivateOtp.trim());
+      setShowDeactivateModal(false);
+      showAlert({ title: 'Success', message: 'Account permanently deleted.' });
+    } catch (e: any) {
+      showAlert({ title: 'Error', message: e.message || 'Verification failed.' });
+    } finally {
+      setIsDeactivating(false);
+    }
   };
 
   const handlePermissionRequest = async (type: 'foreground' | 'background') => {
@@ -99,17 +131,17 @@ const SettingsScreen = () => {
       if (!result.canceled && result.assets && result.assets.length > 0) {
         const asset = result.assets[0];
         const newUri = FileSystem.documentDirectory + 'custom_alarm_' + Date.now() + '.mp3';
-        
+
         await FileSystem.copyAsync({
           from: asset.uri,
           to: newUri
         });
-        
-        store.updateSettings({ 
+
+        store.updateSettings({
           customAlarmSoundUri: newUri,
           customAlarmSoundName: asset.name
         });
-        
+
         await notificationService.unloadAlarmSound();
         showAlert({ title: 'Success', message: 'Custom alarm sound set successfully.' });
       }
@@ -120,11 +152,11 @@ const SettingsScreen = () => {
   };
 
   const clearCustomSound = async () => {
-     store.updateSettings({ 
-       customAlarmSoundUri: null,
-       customAlarmSoundName: null
-     });
-     await notificationService.unloadAlarmSound();
+    store.updateSettings({
+      customAlarmSoundUri: null,
+      customAlarmSoundName: null
+    });
+    await notificationService.unloadAlarmSound();
   };
 
 
@@ -202,7 +234,7 @@ const SettingsScreen = () => {
                   style={[
                     styles.radiusOptionText,
                     store.settings.defaultRadius === radius &&
-                      styles.radiusOptionTextActive,
+                    styles.radiusOptionTextActive,
                   ]}
                 >
                   {radius}m
@@ -234,7 +266,7 @@ const SettingsScreen = () => {
             icon="notifications"
             label="Notifications"
             status={permissions.notifications}
-            onRequest={() => {}}
+            onRequest={() => { }}
           />
         </Card>
 
@@ -264,34 +296,29 @@ const SettingsScreen = () => {
           </View>
         </Card>
 
-        {/* Data & Privacy */}
-        <Card style={styles.section}>
-          <Text style={styles.sectionTitle}>📊 Data & Privacy</Text>
 
-          <TouchableOpacity style={styles.actionItem} onPress={handleClearHistory}>
-            <View>
-              <Text style={styles.actionLabel}>Clear Trip History</Text>
-              <Text style={styles.actionDescription}>Delete all recorded trips</Text>
-            </View>
-            <Icon name="chevron-forward" size={20} color={colors.textSecondary} />
-          </TouchableOpacity>
-        </Card>
 
         {/* Account Details */}
         <Card style={styles.section}>
           <Text style={styles.sectionTitle}>👤 Account</Text>
-          
+
           <View style={styles.infoItem}>
             <Text style={styles.infoLabel}>Currently logged in</Text>
             <Text style={styles.infoValue}>{useAuthStore.getState().user?.email || 'N/A'}</Text>
           </View>
-          
-          <TouchableOpacity style={[styles.actionItem, { borderBottomWidth: 0 }]} onPress={handleLogout}>
+
+          <TouchableOpacity style={styles.actionItem} onPress={handleLogout}>
             <View>
-              <Text style={[styles.actionLabel, { color: colors.danger }]}>Log Out</Text>
+              <Text style={[styles.actionLabel]}>Log Out</Text>
               <Text style={styles.actionDescription}>End your current session</Text>
             </View>
-            <Icon name="log-out-outline" size={20} color={colors.danger} />
+          </TouchableOpacity>
+
+          <TouchableOpacity style={[styles.actionItem, { borderBottomWidth: 0 }]} onPress={handleDeactivateRequest}>
+            <View>
+              <Text style={[styles.actionLabel, { color: colors.danger }]}>Deactivate Account</Text>
+              <Text style={styles.actionDescription}>Permanently delete account and data</Text>
+            </View>
           </TouchableOpacity>
         </Card>
 
@@ -315,9 +342,52 @@ const SettingsScreen = () => {
         {/* Footer */}
         <View style={styles.footer}>
           <Text style={styles.footerText}>WakeWay - Never miss your stop ✈️</Text>
-          <Text style={styles.footerVersion}>v1.0.0 • Built with React Native</Text>
+          <Text style={styles.footerVersion}>v1.0.0 </Text>
         </View>
       </ScrollView>
+
+      {/* Deactivate OTP Modal */}
+      <Modal visible={showDeactivateModal} transparent animationType="fade">
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContent, { backgroundColor: isDark ? '#1F2937' : '#FFFFFF' }]}>
+            <Text style={[styles.modalTitle, { color: isDark ? '#FFFFFF' : '#000000' }]}>Enter Deactivation Code</Text>
+            <Text style={[styles.modalSubtitle, { color: isDark ? '#9CA3AF' : '#6B7280' }]}>
+              Please enter the 6-digit code sent to your email to confirm deletion.
+            </Text>
+
+            <TextInput
+              style={[styles.otpInput, { color: isDark ? '#FFFFFF' : '#000000' }]}
+              placeholder="000000"
+              placeholderTextColor={colors.textSecondary}
+              keyboardType="number-pad"
+              maxLength={6}
+              value={deactivateOtp}
+              onChangeText={setDeactivateOtp}
+              editable={!isDeactivating}
+            />
+
+            <View style={styles.modalButtons}>
+              <View style={{ flex: 1 }}>
+                <Button
+                  title="Cancel"
+                  variant="outline"
+                  onPress={() => setShowDeactivateModal(false)}
+                  disabled={isDeactivating}
+                />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Button
+                  title={isDeactivating ? "Wait..." : "Confirm"}
+                  variant="danger"
+                  onPress={handleDeactivateConfirm}
+                  disabled={deactivateOtp.length < 6 || isDeactivating}
+                />
+              </View>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
     </SafeAreaView>
   );
 };
@@ -340,7 +410,7 @@ const SettingRow = ({
 }) => {
   const { colors } = useTheme();
   const styles = getStyles(colors);
-  
+
   return (
     <View style={[styles.settingItem, disabled && styles.settingItemDisabled]}>
       <View style={{ flex: 1 }}>
@@ -558,6 +628,51 @@ const getStyles = (colors: any) => StyleSheet.create({
     fontSize: 12,
     color: colors.textSecondary,
     marginTop: 4,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 24,
+  },
+  modalContent: {
+    backgroundColor: colors.card,
+    borderRadius: 16,
+    padding: 24,
+    width: '100%',
+    maxWidth: 400,
+    alignItems: 'center',
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: colors.text,
+    marginBottom: 8,
+  },
+  modalSubtitle: {
+    fontSize: 14,
+    color: colors.textSecondary,
+    textAlign: 'center',
+    marginBottom: 24,
+  },
+  otpInput: {
+    backgroundColor: colors.background,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: 8,
+    padding: 16,
+    fontSize: 24,
+    letterSpacing: 8,
+    textAlign: 'center',
+    width: '100%',
+    color: colors.text,
+    marginBottom: 24,
+  },
+  modalButtons: {
+    flexDirection: 'row',
+    gap: 16,
+    width: '100%',
   },
 });
 

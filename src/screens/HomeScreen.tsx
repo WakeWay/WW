@@ -214,7 +214,7 @@ const HomeScreen = ({ navigation }: any) => {
           <Text style={styles.sectionTitle}>Quick Stats</Text>
           <View style={styles.statsGrid}>
             <View style={styles.statItem}>
-              <Text style={styles.statValue}>{store.trips.length}</Text>
+              <Text style={styles.statValue}>{store.tripHistory.length}</Text>
               <Text style={styles.statLabel}>Total Trips</Text>
             </View>
             <View style={styles.statItem}>

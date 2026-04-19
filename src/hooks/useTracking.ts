@@ -198,12 +198,6 @@ export const useAppLifecycle = (): void => {
   const [hasRestored, setHasRestored] = useState(false);
 
   useEffect(() => {
-    // Restore app state on mount (only once)
-    if (!hasRestored) {
-      store.restoreAppState();
-      setHasRestored(true);
-    }
-
     // Check permission status on mount
     (async () => {
       const permissions = await locationService.checkPermissions();

@@ -18,13 +18,44 @@ import Icon from '@components/Icon';
 import { Card } from '@components/UIComponents';
 import { useTripStore } from '@store/useTripStore';
 import { useTheme } from '@hooks/useTheme';
+import { useAlert } from '../providers/AlertProvider';
 
 const HistoryScreen = () => {
   const store = useTripStore();
   const { colors } = useTheme();
+  const { showAlert } = useAlert();
   const styles = getStyles(colors);
   
   const [filter, setFilter] = useState<'all' | 'alarms'>('all');
+
+  const handleClearHistory = () => {
+    showAlert({
+      title: 'Clear History',
+      message: 'Are you sure you want to completely delete all trip history?',
+      showCancelButton: true,
+      confirmText: 'Clear',
+      confirmButtonColor: colors.danger,
+      onConfirm: () => {
+        store.clearTripHistory();
+        setTimeout(() => {
+          showAlert({ title: 'Success', message: 'Trip history cleared.' });
+        }, 500);
+      }
+    });
+  };
+
+  const handleDeleteTrip = (tripId: string) => {
+    showAlert({
+      title: 'Delete Trip',
+      message: 'Are you sure you want to delete this trip record?',
+      showCancelButton: true,
+      confirmText: 'Delete',
+      confirmButtonColor: colors.danger,
+      onConfirm: () => {
+        store.deleteTrip(tripId);
+      }
+    });
+  };
 
   const filteredHistory =
     filter === 'alarms' ? store.tripHistory.filter((t: any) => t.alarmTriggered || t.alarmTriggerTime) : store.tripHistory;
@@ -84,6 +115,12 @@ const HistoryScreen = () => {
             With Alarms
           </Text>
         </TouchableOpacity>
+        <View style={{ flex: 1 }} />
+        {sortedHistory.length > 0 && (
+          <TouchableOpacity style={[styles.filterButton, { borderColor: colors.danger }]} onPress={handleClearHistory}>
+            <Text style={[styles.filterButtonText, { color: colors.danger }]}>Clear All</Text>
+          </TouchableOpacity>
+        )}
       </View>
 
       {/* History List */}
@@ -104,12 +141,18 @@ const HistoryScreen = () => {
                   <Text style={styles.tripDestination}>{trip.destinationName}</Text>
                   <Text style={styles.tripDate}>{formatDate(trip.endTime)}</Text>
                 </View>
-                {/* Alarm Badge */}
-                {(trip.alarmTriggered || trip.alarmTriggerTime) && (
-                  <View style={styles.alarmBadge}>
-                    <Icon name="alarm" size={16} color="#FFFFFF" />
-                  </View>
-                )}
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+                  {/* Alarm Badge */}
+                  {(trip.alarmTriggered || trip.alarmTriggerTime) && (
+                    <View style={styles.alarmBadge}>
+                      <Icon name="alarm" size={16} color="#FFFFFF" />
+                    </View>
+                  )}
+                  {/* Delete Button */}
+                  <TouchableOpacity onPress={() => handleDeleteTrip(trip.tripId)}>
+                    <Icon name="trash-outline" size={20} color={colors.danger} />
+                  </TouchableOpacity>
+                </View>
               </View>
 
               <View style={styles.tripDetails}>
