@@ -87,7 +87,8 @@ const osmMapHtml = `
                       const data = typeof event.data === 'string' ? JSON.parse(event.data) : event.data;
                       
                       if (data.type === 'setCenter') {
-                          const { latitude, longitude, autoCenter, destination } = data;
+                          const { latitude, longitude, autoCenter, destination, isViewOnly } = data;
+                          if (isViewOnly) window.IS_VIEW_ONLY = true;
                           if (currentMarker) map.removeLayer(currentMarker);
                           
                           const pulseIcon = L.divIcon({
@@ -160,6 +161,7 @@ const osmMapHtml = `
               document.addEventListener('message', handleMessage);
               
               map.on('click', (e) => {
+                  if (window.IS_VIEW_ONLY) return;
                   const { lat, lng } = e.latlng;
                   
                   if (selectedMarker) map.removeLayer(selectedMarker);
@@ -190,6 +192,7 @@ const osmMapHtml = `
 
 const MapScreen = ({ navigation }: any) => {
   const store = useTripStore();
+  const isViewOnly = !!store.activeTrip;
   const { startTracking } = useLocationTracking();
   const { colors } = useTheme();
   const { showAlert } = useAlert();
@@ -317,6 +320,7 @@ const MapScreen = ({ navigation }: any) => {
       longitude: store.currentLocation.longitude,
       autoCenter: true,
       destination: store.activeTrip?.destination,
+      isViewOnly: !!store.activeTrip,
     });
     
     if (Platform.OS === 'web') {
@@ -335,6 +339,7 @@ const MapScreen = ({ navigation }: any) => {
         longitude: store.currentLocation.longitude,
         autoCenter: !hasSetInitialLocation, // Only auto-center the first time
         destination: store.activeTrip?.destination,
+        isViewOnly: !!store.activeTrip,
       });
       
       if (Platform.OS === 'web') {
@@ -392,33 +397,38 @@ const MapScreen = ({ navigation }: any) => {
   };
 
 
-
-  return (
+  return (
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
-        <Text style={styles.title}>📍 Select Destination</Text>
-        <Text style={styles.subtitle}>Tap on the map or search to select a location</Text>
-        <View style={styles.searchContainer}>
-          <TextInput
-            style={styles.searchInput}
-            placeholder="Search location..."
-            placeholderTextColor={colors.textSecondary}
-            value={searchQuery}
-            onChangeText={(text) => {
-               setSearchQuery(text);
-               if (text === '') setSearchResults([]);
-            }}
-            onSubmitEditing={handleSearchSubmit}
-            returnKeyType="search"
-          />
-          <TouchableOpacity onPress={handleSearchSubmit} style={styles.searchButton}>
-            {isSearching ? (
-              <ActivityIndicator size="small" color="#FFFFFF" />
-            ) : (
-              <MaterialIcons name="search" size={20} color="#FFFFFF" />
-            )}
-          </TouchableOpacity>
-        </View>
+        <Text style={styles.title}>{isViewOnly ? '📍 Trip Route' : '📍 Select Destination'}</Text>
+        {isViewOnly ? (
+           <Text style={styles.subtitle}>Currently navigating to your destination</Text>
+        ) : (
+          <>
+            <Text style={styles.subtitle}>Tap on the map or search to select a location</Text>
+            <View style={styles.searchContainer}>
+              <TextInput
+                style={styles.searchInput}
+                placeholder="Search location..."
+                placeholderTextColor={colors.textSecondary}
+                value={searchQuery}
+                onChangeText={(text) => {
+                   setSearchQuery(text);
+                   if (text === '') setSearchResults([]);
+                }}
+                onSubmitEditing={handleSearchSubmit}
+                returnKeyType="search"
+              />
+              <TouchableOpacity onPress={handleSearchSubmit} style={styles.searchButton}>
+                {isSearching ? (
+                  <ActivityIndicator size="small" color="#FFFFFF" />
+                ) : (
+                  <MaterialIcons name="search" size={20} color="#FFFFFF" />
+                )}
+              </TouchableOpacity>
+            </View>
+          </>
+        )}
       </View>
 
       <View style={styles.mapContainer}>
@@ -480,18 +490,29 @@ const MapScreen = ({ navigation }: any) => {
       </View>
       
       <View style={styles.footer}>
-        {!isKeyboardVisible && (
-          <Text style={styles.instruction}>
-            {selectedLocation 
-              ? `✓ Selected: ${selectedLocation.latitude.toFixed(4)}, ${selectedLocation.longitude.toFixed(4)}`
-              : '📍 Tap map to select'}
-          </Text>
+        {isViewOnly ? (
+          <Button
+            title="Back to Home"
+            onPress={() => navigation.goBack()}
+            style={styles.button}
+            variant="outline"
+          />
+        ) : (
+          <>
+            {!isKeyboardVisible && (
+              <Text style={styles.instruction}>
+                {selectedLocation 
+                  ? `✓ Selected: ${selectedLocation.latitude.toFixed(4)}, ${selectedLocation.longitude.toFixed(4)}`
+                  : '📍 Tap map to select'}
+              </Text>
+            )}
+            <Button
+              title={isKeyboardVisible ? "Search" : "Confirm Location"}
+              onPress={isKeyboardVisible ? handleSearchSubmit : handleSelectLocation}
+              style={styles.button}
+            />
+          </>
         )}
-        <Button
-          title={isKeyboardVisible ? "Search" : "Confirm Location"}
-          onPress={isKeyboardVisible ? handleSearchSubmit : handleSelectLocation}
-          style={styles.button}
-        />
       </View>
     </SafeAreaView>
   );
