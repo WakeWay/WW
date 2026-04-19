@@ -16,6 +16,14 @@ const JWT_SECRET = process.env.JWT_SECRET || 'wakeway-super-secret-key-replace-i
 // Generate a random 6 digit OTP
 const generateOtp = () => Math.floor(100000 + Math.random() * 900000).toString();
 
+// =============== HEALTH CHECKS ===============
+
+// Lightweight endpoint specifically for external cron jobs (like cron-job.org)
+// Hitting this endpoint every 14 minutes prevents Render from putting the Free Tier server to sleep!
+app.get('/api/ping', (req, res) => {
+  res.status(200).json({ status: 'awake', time: new Date() });
+});
+
 // =============== AUTH ROUTES ===============
 
 app.post('/api/auth/request-otp', async (req, res) => {
