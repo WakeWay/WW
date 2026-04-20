@@ -56,7 +56,7 @@ const SignupScreen = ({ navigation }: any) => {
     if (otpSent && otp) {
       await verifyOtp(email, otp);
     } else if (!otpSent) {
-      await requestOtp(email);
+      await requestOtp(email, 'signup');
     }
   };
 

@@ -32,6 +32,19 @@ app.post('/api/auth/request-otp', async (req, res) => {
     if (!email) return res.status(400).json({ error: 'Email is required' });
 
     const emailLower = email.toLowerCase();
+
+    // Validate user existence based on the action
+    if (reason === 'login') {
+      const userRes = await query(`SELECT id FROM users WHERE email = $1`, [emailLower]);
+      if (userRes.rows.length === 0) {
+        return res.status(400).json({ error: 'User not found. Please sign up.' });
+      }
+    } else if (reason === 'signup') {
+      const userRes = await query(`SELECT id FROM users WHERE email = $1`, [emailLower]);
+      if (userRes.rows.length > 0) {
+        return res.status(400).json({ error: 'User already exists. Please log in.' });
+      }
+    }
     const otp = generateOtp();
     const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
 

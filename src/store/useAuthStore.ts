@@ -19,7 +19,7 @@ interface AuthState {
 }
 
 interface AuthActions {
-  requestOtp: (email: string, reason?: 'login' | 'deactivate') => Promise<void>;
+  requestOtp: (email: string, reason?: 'login' | 'deactivate' | 'signup') => Promise<void>;
   verifyOtp: (email: string, otp: string) => Promise<void>;
   deactivateAccount: (otp: string) => Promise<void>;
   logout: () => Promise<void>;
