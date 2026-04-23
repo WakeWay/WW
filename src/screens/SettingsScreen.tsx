@@ -1,23 +1,14 @@
 /**
- * Settings Screen - User preferences and app configuration
+ * Settings Screen — Premium edition with profile card, visual theme picker, danger zone
  */
 
 import React, { useState } from 'react';
 import {
-  View,
-  StyleSheet,
-  SafeAreaView,
-  ScrollView,
-  Text,
-  Switch,
-  TouchableOpacity,
-  Platform,
-  StatusBar,
-  Linking,
-  Modal,
-  TextInput,
-  ActivityIndicator
+  View, StyleSheet, SafeAreaView, ScrollView, Text,
+  Switch, TouchableOpacity, Platform, StatusBar,
+  Linking, Modal, TextInput, ActivityIndicator,
 } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system';
 import { notificationService } from '@services/notificationService';
@@ -27,71 +18,127 @@ import { useLocationPermissions } from '@hooks/useTracking';
 import { useTheme } from '@hooks/useTheme';
 import { useAuthStore } from '@store/useAuthStore';
 import TermsModal from '@components/TermsModal';
-import { Card, Button, COLORS as DEFAULT_COLORS } from '@components/UIComponents';
+import { Button } from '@components/UIComponents';
+import AvatarInitials from '@components/AvatarInitials';
 import { DEFAULT_RADIUS_METERS, RADIUS_OPTIONS } from '@/constants';
 import { useAlert } from '../providers/AlertProvider';
+import { GRADIENTS, SHADOWS, RADIUS as R } from '@/constants/theme';
+
+// ─── Toggle Row ───────────────────────────────────────────────────────────────
+
+const ToggleRow: React.FC<{ label: string; desc: string; value: boolean; onChange: (v: boolean) => void; icon: string; iconColor: string; disabled?: boolean }> = ({ label, desc, value, onChange, icon, iconColor, disabled }) => {
+  const { colors } = useTheme();
+  return (
+    <View style={[rowStyles.row, { borderBottomColor: colors.border, opacity: disabled ? 0.5 : 1 }]}>
+      <View style={[rowStyles.iconWrap, { backgroundColor: iconColor + '18' }]}>
+        <Icon name={icon} size={16} color={iconColor} />
+      </View>
+      <View style={{ flex: 1 }}>
+        <Text style={[rowStyles.label, { color: colors.text }]}>{label}</Text>
+        <Text style={[rowStyles.desc, { color: colors.textSecondary }]}>{desc}</Text>
+      </View>
+      <Switch
+        value={value}
+        onValueChange={onChange}
+        disabled={disabled}
+        trackColor={{ false: colors.border, true: colors.primary + '80' }}
+        thumbColor={value ? colors.primary : colors.textSecondary}
+        ios_backgroundColor={colors.border}
+      />
+    </View>
+  );
+};
+
+const rowStyles = StyleSheet.create({
+  row: { flexDirection: 'row', alignItems: 'center', paddingVertical: 14, borderBottomWidth: 1, gap: 12 },
+  iconWrap: { width: 34, height: 34, borderRadius: 10, justifyContent: 'center', alignItems: 'center' },
+  label: { fontSize: 14, fontWeight: '600' },
+  desc: { fontSize: 12, marginTop: 1 },
+});
+
+// ─── Permission Row ───────────────────────────────────────────────────────────
+
+const PermissionRow: React.FC<{ icon: string; label: string; status: string; onRequest: () => void }> = ({ icon, label, status, onRequest }) => {
+  const { colors } = useTheme();
+  const { showAlert } = useAlert();
+  const granted = status === 'granted';
+  return (
+    <View style={[rowStyles.row, { borderBottomColor: colors.border }]}>
+      <View style={[rowStyles.iconWrap, { backgroundColor: (granted ? colors.success : colors.danger) + '18' }]}>
+        <Icon name={icon} size={16} color={granted ? colors.success : colors.danger} />
+      </View>
+      <View style={{ flex: 1 }}>
+        <Text style={[rowStyles.label, { color: colors.text }]}>{label}</Text>
+        <Text style={[rowStyles.desc, { color: granted ? colors.success : colors.danger, fontWeight: '700' }]}>
+          {granted ? '✓ Granted' : '✗ Not Granted'}
+        </Text>
+      </View>
+      {!granted ? (
+        <Button title="Grant" size="small" onPress={onRequest} />
+      ) : (
+        <Button title="Revoke" size="small" variant="outline" onPress={() => showAlert({
+          title: 'Revoke Permission', message: 'Go to device Settings to toggle off this permission.',
+          showCancelButton: true, confirmText: 'Open Settings', confirmButtonColor: colors.danger,
+          onConfirm: () => Linking.openSettings(),
+        })} />
+      )}
+    </View>
+  );
+};
+
+// ─── Section Card ─────────────────────────────────────────────────────────────
+
+const SectionCard: React.FC<{ title: string; icon: string; accentColor: string; children: React.ReactNode; colors: any }> = ({ title, icon, accentColor, children, colors }) => (
+  <View style={[secStyles.card, { backgroundColor: colors.surface, borderLeftColor: accentColor, ...SHADOWS.subtle }]}>
+    <View style={secStyles.heading}>
+      <View style={[secStyles.headIcon, { backgroundColor: accentColor + '18' }]}>
+        <Icon name={icon} size={16} color={accentColor} />
+      </View>
+      <Text style={[secStyles.headTitle, { color: colors.text }]}>{title}</Text>
+    </View>
+    {children}
+  </View>
+);
+
+const secStyles = StyleSheet.create({
+  card: { marginHorizontal: 16, marginBottom: 14, borderRadius: R.lg, padding: 18, borderLeftWidth: 3, paddingLeft: 16 },
+  heading: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 8, paddingBottom: 10, borderBottomWidth: 1 },
+  headIcon: { width: 32, height: 32, borderRadius: 10, justifyContent: 'center', alignItems: 'center' },
+  headTitle: { fontSize: 15, fontWeight: '700', letterSpacing: 0.2 },
+});
+
+// ─── Main ─────────────────────────────────────────────────────────────────────
 
 const SettingsScreen = () => {
   const store = useTripStore();
   const { isDark, colors, themeMode, setDarkMode } = useTheme();
   const { showAlert } = useAlert();
-  const styles = getStyles(colors);
-
   const [showDeactivateModal, setShowDeactivateModal] = useState(false);
   const [deactivateOtp, setDeactivateOtp] = useState('');
   const [isDeactivating, setIsDeactivating] = useState(false);
   const [showTermsModal, setShowTermsModal] = useState(false);
+  const { permissions, requestForegroundPermission, requestBackgroundPermission } = useLocationPermissions();
 
-  const { permissions, requestForegroundPermission, requestBackgroundPermission } =
-    useLocationPermissions();
+  const email = useAuthStore.getState().user?.email;
 
-  const handleToggleSetting = (key: keyof typeof store.settings, value: boolean) => {
-    store.updateSettings({ [key]: value });
-  };
+  const handleLogout = () => showAlert({
+    title: 'Log Out', message: 'Are you sure you want to log out?',
+    showCancelButton: true, confirmText: 'Log Out', confirmButtonColor: colors.danger,
+    onConfirm: () => setTimeout(() => useAuthStore.getState().logout(), 300),
+  });
 
-  const handleDefaultRadiusChange = (radius: number) => {
-    store.updateSettings({ defaultRadius: radius });
-  };
-
-
-
-  const handleLogout = () => {
-    showAlert({
-      title: 'Log Out',
-      message: 'Are you sure you want to log out?',
-      showCancelButton: true,
-      confirmText: 'Log Out',
-      confirmButtonColor: colors.danger,
-      onConfirm: () => {
-        setTimeout(() => {
-          useAuthStore.getState().logout();
-        }, 300);
+  const handleDeactivateRequest = () => showAlert({
+    title: 'Deactivate Account', message: 'This will permanently delete your account and all data. An OTP will be sent to confirm.',
+    showCancelButton: true, confirmText: 'Send Code', confirmButtonColor: colors.danger,
+    onConfirm: async () => {
+      if (email) {
+        setShowDeactivateModal(true);
+        setDeactivateOtp('');
+        try { await useAuthStore.getState().requestOtp(email, 'deactivate'); }
+        catch { setShowDeactivateModal(false); showAlert({ title: 'Error', message: 'Failed to send OTP.' }); }
       }
-    });
-  };
-
-  const handleDeactivateRequest = () => {
-    showAlert({
-      title: 'Deactivate Account',
-      message: 'This will permanently delete your account and all history. An OTP will be sent to confirm.',
-      showCancelButton: true,
-      confirmText: 'Send Code',
-      confirmButtonColor: colors.danger,
-      onConfirm: async () => {
-        const email = useAuthStore.getState().user?.email;
-        if (email) {
-          setShowDeactivateModal(true);
-          setDeactivateOtp('');
-          try {
-            await useAuthStore.getState().requestOtp(email, 'deactivate');
-          } catch (e: any) {
-            setShowDeactivateModal(false);
-            showAlert({ title: 'Error', message: 'Failed to request OTP' });
-          }
-        }
-      }
-    });
-  };
+    },
+  });
 
   const handleDeactivateConfirm = async () => {
     if (!deactivateOtp || deactivateOtp.length < 6) return;
@@ -99,273 +146,186 @@ const SettingsScreen = () => {
     try {
       await useAuthStore.getState().deactivateAccount(deactivateOtp.trim());
       setShowDeactivateModal(false);
-      showAlert({ title: 'Success', message: 'Account permanently deleted.' });
+      showAlert({ title: 'Deleted', message: 'Your account has been permanently deleted.' });
     } catch (e: any) {
       showAlert({ title: 'Error', message: e.message || 'Verification failed.' });
-    } finally {
-      setIsDeactivating(false);
-    }
+    } finally { setIsDeactivating(false); }
   };
 
-  const handlePermissionRequest = async (type: 'foreground' | 'background') => {
-    if (type === 'foreground') {
-      const granted = await requestForegroundPermission();
-      showAlert({
-        title: 'Permission',
-        message: granted ? 'Foreground location permission granted' : 'Permission request was denied',
-      });
-    } else {
-      const granted = await requestBackgroundPermission();
-      showAlert({
-        title: 'Permission',
-        message: granted ? 'Background location permission granted' : 'Permission request was denied',
-      });
-    }
-  };
-
-  const handlePickCustomSound = async () => {
+  const handlePickSound = async () => {
     try {
-      const result = await DocumentPicker.getDocumentAsync({
-        type: 'audio/*',
-        copyToCacheDirectory: true,
-      });
-
-      if (!result.canceled && result.assets && result.assets.length > 0) {
+      const result = await DocumentPicker.getDocumentAsync({ type: 'audio/*', copyToCacheDirectory: true });
+      if (!result.canceled && result.assets?.length) {
         const asset = result.assets[0];
         const newUri = FileSystem.documentDirectory + 'custom_alarm_' + Date.now() + '.mp3';
-
-        await FileSystem.copyAsync({
-          from: asset.uri,
-          to: newUri
-        });
-
-        store.updateSettings({
-          customAlarmSoundUri: newUri,
-          customAlarmSoundName: asset.name
-        });
-
+        await FileSystem.copyAsync({ from: asset.uri, to: newUri });
+        store.updateSettings({ customAlarmSoundUri: newUri, customAlarmSoundName: asset.name });
         await notificationService.unloadAlarmSound();
-        showAlert({ title: 'Success', message: 'Custom alarm sound set successfully.' });
+        showAlert({ title: 'Done', message: 'Custom alarm sound set.' });
       }
-    } catch (err) {
-      console.error('Failed to pick custom sound:', err);
-      showAlert({ title: 'Error', message: 'Could not pick audio file.' });
-    }
+    } catch { showAlert({ title: 'Error', message: 'Could not pick audio file.' }); }
   };
 
-  const clearCustomSound = async () => {
-    store.updateSettings({
-      customAlarmSoundUri: null,
-      customAlarmSoundName: null
-    });
+  const clearSound = async () => {
+    store.updateSettings({ customAlarmSoundUri: null, customAlarmSoundName: null });
     await notificationService.unloadAlarmSound();
   };
 
+  const THEME_OPTIONS = [
+    { key: 'light', label: 'Light', icon: 'sunny-outline', color: '#F59E0B' },
+    { key: 'dark', label: 'Dark', icon: 'moon-outline', color: '#6366F1' },
+    { key: 'system', label: 'System', icon: 'phone-portrait-outline', color: '#10B981' },
+  ] as const;
 
   return (
-    <SafeAreaView style={styles.container}>
-      <ScrollView style={styles.scroll} showsVerticalScrollIndicator={false}>
-        {/* Header */}
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.background, paddingTop: Platform.OS === 'android' ? StatusBar.currentHeight : 0 }]}>
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 40 }}>
+
+        {/* ── Header ─────────────────────────────── */}
         <View style={styles.header}>
-          <Text style={styles.headerTitle}>Settings</Text>
+          <Text style={[styles.title, { color: colors.text }]}>Settings</Text>
         </View>
 
-        {/* Alarm Preferences */}
-        <Card style={styles.section}>
-          <Text style={styles.sectionTitle}>🔔 Alarm Preferences</Text>
+        {/* ── Profile Card ───────────────────────── */}
+        <LinearGradient colors={isDark ? GRADIENTS.heroDark : GRADIENTS.hero} style={[styles.profileCard, { ...SHADOWS.elevated }]}>
+          <AvatarInitials email={email} size={60} />
+          <View style={styles.profileInfo}>
+            <Text style={styles.profileName}>
+              {email ? email.split('@')[0].charAt(0).toUpperCase() + email.split('@')[0].slice(1) : 'Traveler'}
+            </Text>
+            <Text style={styles.profileEmail}>{email || 'Not signed in'}</Text>
+            <View style={styles.verifiedBadge}>
+              <Icon name="checkmark-circle" size={12} color="#4ADE80" />
+              <Text style={styles.verifiedText}>Verified</Text>
+            </View>
+          </View>
+        </LinearGradient>
 
-          <SettingRow
-            label="Sound"
-            description="Play alarm sound"
-            value={store.settings.soundEnabled}
-            onChange={(value) => handleToggleSetting('soundEnabled', value)}
-          />
-
-          <SettingRow
-            label="Vibration"
-            description="Vibrate on alarm"
-            value={store.settings.vibrationEnabled}
-            onChange={(value) => handleToggleSetting('vibrationEnabled', value)}
-          />
-
-          <SettingRow
-            label="Snooze"
-            description="Enable snooze option"
-            value={store.settings.snoozeEnabled}
-            onChange={(value) => handleToggleSetting('snoozeEnabled', value)}
-          />
-
-          <View style={[styles.settingItem, { flexDirection: 'column', alignItems: 'flex-start' }]}>
-            <View style={{ marginBottom: 8 }}>
-              <Text style={styles.settingLabel}>Custom Alarm Sound</Text>
-              <Text style={styles.settingDescription}>
-                {store.settings.customAlarmSoundName || 'Default Sound'}
-              </Text>
+        {/* ── Alarm Preferences ──────────────────── */}
+        <SectionCard title="Alarm" icon="alarm-outline" accentColor={colors.danger} colors={colors}>
+          <ToggleRow label="Sound" desc="Play alarm sound on trigger" value={store.settings.soundEnabled} onChange={v => store.updateSettings({ soundEnabled: v })} icon="volume-high-outline" iconColor={colors.danger} />
+          <ToggleRow label="Vibration" desc="Vibrate when alarm triggers" value={store.settings.vibrationEnabled} onChange={v => store.updateSettings({ vibrationEnabled: v })} icon="phone-portrait-outline" iconColor={colors.warning} />
+          <ToggleRow label="Snooze" desc="Allow snoozing the alarm" value={store.settings.snoozeEnabled} onChange={v => store.updateSettings({ snoozeEnabled: v })} icon="timer-outline" iconColor={colors.primary} />
+          <View style={[rowStyles.row, { borderBottomWidth: 0, flexDirection: 'column', alignItems: 'flex-start', gap: 10 }]}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+              <View style={[rowStyles.iconWrap, { backgroundColor: colors.accent + '18' }]}>
+                <Icon name="musical-notes-outline" size={16} color={colors.accent} />
+              </View>
+              <View>
+                <Text style={[rowStyles.label, { color: colors.text }]}>Custom Sound</Text>
+                <Text style={[rowStyles.desc, { color: colors.textSecondary }]}>{store.settings.customAlarmSoundName || 'Default'}</Text>
+              </View>
             </View>
             <View style={{ flexDirection: 'row', gap: 8 }}>
-              <Button title="Choose File" size="small" onPress={handlePickCustomSound} variant="primary" />
-              {store.settings.customAlarmSoundUri && (
-                <Button title="Reset Default" size="small" onPress={clearCustomSound} variant="outline" />
-              )}
+              <Button title="Choose File" size="small" onPress={handlePickSound} />
+              {store.settings.customAlarmSoundUri && <Button title="Reset" size="small" variant="outline" onPress={clearSound} />}
             </View>
           </View>
-        </Card>
+        </SectionCard>
 
-        {/* Default Settings */}
-        <Card style={styles.section}>
-          <Text style={styles.sectionTitle}>⚙️ Default Settings</Text>
-
-          <View style={styles.settingItem}>
-            <View>
-              <Text style={styles.settingLabel}>Default Radius</Text>
-              <Text style={styles.settingDescription}>Default alert distance for new trips</Text>
-            </View>
-          </View>
-
-          <View style={styles.radiusGrid}>
-            {RADIUS_OPTIONS.map((radius: number) => (
-              <TouchableOpacity
-                key={radius}
-                style={[
-                  styles.radiusOption,
-                  store.settings.defaultRadius === radius && styles.radiusOptionActive,
-                ]}
-                onPress={() => handleDefaultRadiusChange(radius)}
-              >
-                <Text
-                  style={[
-                    styles.radiusOptionText,
-                    store.settings.defaultRadius === radius &&
-                    styles.radiusOptionTextActive,
-                  ]}
+        {/* ── Default Radius ──────────────────────── */}
+        <SectionCard title="Default Radius" icon="scan-circle-outline" accentColor={colors.primary} colors={colors}>
+          <Text style={[styles.sectionDesc, { color: colors.textSecondary }]}>Alert distance for new trips</Text>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: 10 }} contentContainerStyle={{ gap: 8, paddingRight: 4 }}>
+            {RADIUS_OPTIONS.map((r: number) => {
+              const active = store.settings.defaultRadius === r;
+              return (
+                <TouchableOpacity
+                  key={r}
+                  style={[styles.radiusChip, { backgroundColor: active ? colors.primary : colors.background, borderColor: active ? colors.primary : colors.border }]}
+                  onPress={() => store.updateSettings({ defaultRadius: r })}
                 >
-                  {radius}m
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-        </Card>
+                  <Text style={[styles.radiusChipText, { color: active ? '#FFFFFF' : colors.text }]}>{r}m</Text>
+                </TouchableOpacity>
+              );
+            })}
+          </ScrollView>
+        </SectionCard>
 
-        {/* Permissions */}
-        <Card style={styles.section}>
-          <Text style={styles.sectionTitle}>🔐 Permissions</Text>
-
-          <PermissionRow
-            icon="location"
-            label="Foreground Location"
-            status={permissions.location}
-            onRequest={() => handlePermissionRequest('foreground')}
-          />
-
-          <PermissionRow
-            icon="location"
-            label="Background Location"
-            status={permissions.locationBackground}
-            onRequest={() => handlePermissionRequest('background')}
-          />
-
-          <PermissionRow
-            icon="notifications"
-            label="Notifications"
-            status={permissions.notifications}
-            onRequest={() => { }}
-          />
-        </Card>
-
-        {/* Display */}
-        <Card style={styles.section}>
-          <Text style={styles.sectionTitle}>🌙 Theme Mode</Text>
-          <View style={styles.radiusGrid}>
-            {['system', 'light', 'dark'].map((mode) => (
-              <TouchableOpacity
-                key={mode}
-                style={[
-                  styles.radiusOption,
-                  themeMode === mode && styles.radiusOptionActive,
-                ]}
-                onPress={() => setDarkMode(mode as any)}
-              >
-                <Text
-                  style={[
-                    styles.radiusOptionText,
-                    themeMode === mode && styles.radiusOptionTextActive,
-                  ]}
+        {/* ── Theme ──────────────────────────────── */}
+        <SectionCard title="Appearance" icon="color-palette-outline" accentColor={colors.accent} colors={colors}>
+          <View style={styles.themeGrid}>
+            {THEME_OPTIONS.map(t => {
+              const active = themeMode === t.key;
+              return (
+                <TouchableOpacity
+                  key={t.key}
+                  style={[styles.themeCard, { backgroundColor: colors.background, borderColor: active ? t.color : colors.border, borderWidth: active ? 2 : 1 }]}
+                  onPress={() => setDarkMode(t.key)}
                 >
-                  {mode.charAt(0).toUpperCase() + mode.slice(1)}
-                </Text>
-              </TouchableOpacity>
-            ))}
+                  <View style={[styles.themeIconWrap, { backgroundColor: t.color + '20' }]}>
+                    <Icon name={t.icon} size={22} color={t.color} />
+                  </View>
+                  <Text style={[styles.themeLabel, { color: active ? t.color : colors.text }]}>{t.label}</Text>
+                  {active && <View style={[styles.themeDot, { backgroundColor: t.color }]} />}
+                </TouchableOpacity>
+              );
+            })}
           </View>
-        </Card>
+        </SectionCard>
 
+        {/* ── Permissions ─────────────────────────── */}
+        <SectionCard title="Permissions" icon="shield-checkmark-outline" accentColor={colors.success} colors={colors}>
+          <PermissionRow icon="location-outline" label="Foreground Location" status={permissions.location} onRequest={async () => { const g = await requestForegroundPermission(); showAlert({ title: 'Permission', message: g ? 'Granted!' : 'Denied.' }); }} />
+          <PermissionRow icon="location-outline" label="Background Location" status={permissions.locationBackground} onRequest={async () => { const g = await requestBackgroundPermission(); showAlert({ title: 'Permission', message: g ? 'Granted!' : 'Denied.' }); }} />
+          <PermissionRow icon="notifications-outline" label="Notifications" status={permissions.notifications} onRequest={() => {}} />
+        </SectionCard>
 
-
-        {/* Account Details */}
-        <Card style={styles.section}>
-          <Text style={styles.sectionTitle}>👤 Account</Text>
-
-          <View style={styles.infoItem}>
-            <Text style={styles.infoLabel}>Currently logged in</Text>
-            <Text style={styles.infoValue}>{useAuthStore.getState().user?.email || 'N/A'}</Text>
-          </View>
-
-          <TouchableOpacity style={styles.actionItem} onPress={handleLogout}>
-            <View>
-              <Text style={[styles.actionLabel]}>Log Out</Text>
-              <Text style={styles.actionDescription}>End your current session</Text>
+        {/* ── Account ─────────────────────────────── */}
+        <SectionCard title="Account" icon="person-outline" accentColor={colors.primary} colors={colors}>
+          <TouchableOpacity style={[rowStyles.row, { borderBottomColor: colors.border }]} onPress={handleLogout}>
+            <View style={[rowStyles.iconWrap, { backgroundColor: colors.warning + '18' }]}>
+              <Icon name="log-out-outline" size={16} color={colors.warning} />
             </View>
-          </TouchableOpacity>
-
-          <TouchableOpacity style={[styles.actionItem, { borderBottomWidth: 0 }]} onPress={handleDeactivateRequest}>
-            <View>
-              <Text style={[styles.actionLabel, { color: colors.danger }]}>Deactivate Account</Text>
-              <Text style={styles.actionDescription}>Permanently delete account and data</Text>
+            <View style={{ flex: 1 }}>
+              <Text style={[rowStyles.label, { color: colors.text }]}>Log Out</Text>
+              <Text style={[rowStyles.desc, { color: colors.textSecondary }]}>End your current session</Text>
             </View>
-          </TouchableOpacity>
-        </Card>
-
-        {/* App Info */}
-        <Card style={styles.section}>
-          <Text style={styles.sectionTitle}>ℹ️ About</Text>
-
-          <View style={styles.infoItem}>
-            <Text style={styles.infoLabel}>App Version</Text>
-            <Text style={styles.infoValue}>1.0.0</Text>
-          </View>
-
-          <View style={styles.infoDivider} />
-
-          <View style={styles.infoItem}>
-            <Text style={styles.infoLabel}>Developer</Text>
-            <Text style={styles.infoValue}>WakeWay Team</Text>
-          </View>
-
-          <View style={styles.infoDivider} />
-
-          <TouchableOpacity style={styles.infoItem} onPress={() => setShowTermsModal(true)}>
-            <Text style={styles.infoLabel}>Terms & Conditions</Text>
             <Icon name="chevron-forward" size={16} color={colors.textSecondary} />
           </TouchableOpacity>
-        </Card>
+          <TouchableOpacity style={[rowStyles.row, { borderBottomWidth: 0 }]} onPress={() => setShowTermsModal(true)}>
+            <View style={[rowStyles.iconWrap, { backgroundColor: colors.primary + '18' }]}>
+              <Icon name="document-text-outline" size={16} color={colors.primary} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={[rowStyles.label, { color: colors.text }]}>Terms & Conditions</Text>
+            </View>
+            <Icon name="chevron-forward" size={16} color={colors.textSecondary} />
+          </TouchableOpacity>
+        </SectionCard>
 
-        {/* Footer */}
-        <View style={styles.footer}>
-          <Text style={styles.footerText}>WakeWay - Never miss your stop ✈️</Text>
-          <Text style={styles.footerVersion}>v1.0.0 </Text>
+        {/* ── Danger Zone ─────────────────────────── */}
+        <View style={[styles.dangerZone, { backgroundColor: colors.danger + '10', borderColor: colors.danger + '40' }]}>
+          <View style={styles.dangerHeader}>
+            <Icon name="warning-outline" size={16} color={colors.danger} />
+            <Text style={[styles.dangerTitle, { color: colors.danger }]}>Danger Zone</Text>
+          </View>
+          <Text style={[styles.dangerDesc, { color: colors.textSecondary }]}>This action is irreversible and will permanently delete your account and all data.</Text>
+          <Button title="Deactivate Account" variant="danger" onPress={handleDeactivateRequest} style={{ marginTop: 12 }} />
         </View>
+
+        {/* ── About ───────────────────────────────── */}
+        <SectionCard title="About" icon="information-circle-outline" accentColor={colors.textSecondary} colors={colors}>
+          {[{ label: 'Version', value: '1.0.0' }, { label: 'Developer', value: 'WakeWay Team' }].map((item, i, arr) => (
+            <View key={item.label} style={[rowStyles.row, { borderBottomColor: colors.border, borderBottomWidth: i < arr.length - 1 ? 1 : 0 }]}>
+              <Text style={[rowStyles.label, { color: colors.textSecondary, flex: 1 }]}>{item.label}</Text>
+              <Text style={[rowStyles.desc, { color: colors.text, fontWeight: '600' }]}>{item.value}</Text>
+            </View>
+          ))}
+        </SectionCard>
+
+        <Text style={[styles.footer, { color: colors.textMuted || colors.textSecondary }]}>WakeWay — Never miss your stop ✈️</Text>
       </ScrollView>
 
-      {/* Deactivate OTP Modal */}
+      {/* Deactivate Modal */}
       <Modal visible={showDeactivateModal} transparent animationType="fade">
         <View style={styles.modalOverlay}>
-          <View style={[styles.modalContent, { backgroundColor: isDark ? '#1F2937' : '#FFFFFF' }]}>
-            <Text style={[styles.modalTitle, { color: isDark ? '#FFFFFF' : '#000000' }]}>Enter Deactivation Code</Text>
-            <Text style={[styles.modalSubtitle, { color: isDark ? '#9CA3AF' : '#6B7280' }]}>
-              Please enter the 6-digit code sent to your email to confirm deletion.
-            </Text>
-
+          <View style={[styles.modalBox, { backgroundColor: isDark ? '#1F2937' : '#FFFFFF' }]}>
+            <Icon name="warning" size={32} color={colors.danger} />
+            <Text style={[styles.modalTitle, { color: colors.text }]}>Confirm Deactivation</Text>
+            <Text style={[styles.modalDesc, { color: colors.textSecondary }]}>Enter the 6-digit code sent to your email</Text>
             <TextInput
-              style={[styles.otpInput, { color: isDark ? '#FFFFFF' : '#000000' }]}
+              style={[styles.otpInput, { color: colors.text, borderColor: colors.border, backgroundColor: colors.background }]}
               placeholder="000000"
               placeholderTextColor={colors.textSecondary}
               keyboardType="number-pad"
@@ -374,321 +334,50 @@ const SettingsScreen = () => {
               onChangeText={setDeactivateOtp}
               editable={!isDeactivating}
             />
-
-            <View style={styles.modalButtons}>
-              <View style={{ flex: 1 }}>
-                <Button
-                  title="Cancel"
-                  variant="outline"
-                  onPress={() => setShowDeactivateModal(false)}
-                  disabled={isDeactivating}
-                />
-              </View>
-              <View style={{ flex: 1 }}>
-                <Button
-                  title={isDeactivating ? "Wait..." : "Confirm"}
-                  variant="danger"
-                  onPress={handleDeactivateConfirm}
-                  disabled={deactivateOtp.length < 6 || isDeactivating}
-                />
-              </View>
+            <View style={{ flexDirection: 'row', gap: 12, width: '100%' }}>
+              <Button title="Cancel" variant="outline" onPress={() => setShowDeactivateModal(false)} disabled={isDeactivating} style={{ flex: 1 }} />
+              <Button title={isDeactivating ? 'Wait...' : 'Confirm'} variant="danger" onPress={handleDeactivateConfirm} disabled={deactivateOtp.length < 6 || isDeactivating} style={{ flex: 1 }} />
             </View>
           </View>
         </View>
       </Modal>
 
-      <TermsModal 
-        visible={showTermsModal} 
-        onClose={() => setShowTermsModal(false)}
-        viewOnly={true}
-      />
-
+      <TermsModal visible={showTermsModal} onClose={() => setShowTermsModal(false)} viewOnly={true} />
     </SafeAreaView>
   );
 };
 
-/**
- * Setting Row Component
- */
-const SettingRow = ({
-  label,
-  description,
-  value,
-  onChange,
-  disabled,
-}: {
-  label: string;
-  description: string;
-  value: boolean;
-  onChange: (value: boolean) => void;
-  disabled?: boolean;
-}) => {
-  const { colors } = useTheme();
-  const styles = getStyles(colors);
-
-  return (
-    <View style={[styles.settingItem, disabled && styles.settingItemDisabled]}>
-      <View style={{ flex: 1 }}>
-        <Text style={styles.settingLabel}>{label}</Text>
-        <Text style={styles.settingDescription}>{description}</Text>
-      </View>
-      <Switch
-        value={value}
-        onValueChange={onChange}
-        disabled={disabled}
-        trackColor={{ false: colors.border, true: colors.primary }}
-        thumbColor={value ? colors.primary : colors.textSecondary}
-      />
-    </View>
-  );
-};
-
-/**
- * Permission Row Component
- */
-const PermissionRow = ({
-  icon,
-  label,
-  status,
-  onRequest,
-}: {
-  icon: string;
-  label: string;
-  status: string;
-  onRequest: () => void;
-}) => {
-  const { colors } = useTheme();
-  const styles = getStyles(colors);
-  const isGranted = status === 'granted';
-  const statusColor = isGranted ? colors.success : colors.danger;
-  const statusText = isGranted ? 'Granted' : 'Denied';
-  const { showAlert } = useAlert();
-
-  return (
-    <View style={styles.permissionItem}>
-      <View style={styles.permissionLeft}>
-        <Icon name={icon} size={20} color={colors.primary} />
-        <View style={{ marginLeft: 12, flex: 1 }}>
-          <Text style={styles.settingLabel}>{label}</Text>
-          <Text style={[styles.settingDescription, { color: statusColor }]}>
-            {statusText}
-          </Text>
-        </View>
-      </View>
-      {!isGranted ? (
-        <Button
-          title="Request"
-          size="small"
-          onPress={onRequest}
-          variant="primary"
-        />
-      ) : (
-        <Button
-          title="Remove"
-          size="small"
-          onPress={() => {
-            showAlert({
-              title: 'Revoke Permission',
-              message: 'To safely remove permissions, we will route you to your device Settings. Please toggle off the permission there.',
-              showCancelButton: true,
-              confirmText: 'Open Settings',
-              confirmButtonColor: colors.danger,
-              onConfirm: () => Linking.openSettings()
-            });
-          }}
-          variant="danger"
-        />
-      )}
-    </View>
-  );
-};
-
-const getStyles = (colors: any) => StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: colors.background,
-    paddingTop: Platform.OS === 'android' ? StatusBar.currentHeight : 0,
+const styles = StyleSheet.create({
+  container: { flex: 1 },
+  header: { paddingHorizontal: 20, paddingTop: 12, paddingBottom: 8 },
+  title: { fontSize: 28, fontWeight: '800', letterSpacing: -0.5 },
+  profileCard: {
+    marginHorizontal: 16, marginBottom: 14, borderRadius: R.xl,
+    padding: 20, flexDirection: 'row', alignItems: 'center', gap: 16,
   },
-  scroll: {
-    flex: 1,
-  },
-  header: {
-    padding: 16,
-    paddingTop: 8,
-  },
-  headerTitle: {
-    fontSize: 28,
-    fontWeight: 'bold',
-    color: colors.text,
-  },
-  section: {
-    margin: 16,
-    marginTop: 8,
-  },
-  sectionTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: colors.text,
-    marginBottom: 12,
-  },
-  settingItem: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-  },
-  settingItemDisabled: {
-    opacity: 0.5,
-  },
-  settingLabel: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: colors.text,
-  },
-  settingDescription: {
-    fontSize: 12,
-    color: colors.textSecondary,
-    marginTop: 4,
-  },
-  radiusGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-    marginTop: 12,
-  },
-  radiusOption: {
-    flex: 1,
-    minWidth: '30%',
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    borderRadius: 8,
-    borderWidth: 2,
-    borderColor: colors.border,
-    alignItems: 'center',
-  },
-  radiusOptionActive: {
-    borderColor: colors.primary,
-    backgroundColor: colors.primary + '10',
-  },
-  radiusOptionText: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: colors.text,
-  },
-  radiusOptionTextActive: {
-    color: colors.primary,
-  },
-  permissionItem: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-  },
-  permissionLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flex: 1,
-  },
-  actionItem: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-  },
-  actionLabel: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: colors.text,
-  },
-  actionDescription: {
-    fontSize: 12,
-    color: colors.textSecondary,
-    marginTop: 4,
-  },
-  infoItem: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingVertical: 12,
-  },
-  infoDivider: {
-    height: 1,
-    backgroundColor: colors.border,
-  },
-  infoLabel: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: colors.text,
-  },
-  infoValue: {
-    fontSize: 14,
-    color: colors.textSecondary,
-  },
-  footer: {
-    alignItems: 'center',
-    paddingVertical: 32,
-  },
-  footerText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: colors.text,
-  },
-  footerVersion: {
-    fontSize: 12,
-    color: colors.textSecondary,
-    marginTop: 4,
-  },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.5)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 24,
-  },
-  modalContent: {
-    backgroundColor: colors.card,
-    borderRadius: 16,
-    padding: 24,
-    width: '100%',
-    maxWidth: 400,
-    alignItems: 'center',
-  },
-  modalTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: colors.text,
-    marginBottom: 8,
-  },
-  modalSubtitle: {
-    fontSize: 14,
-    color: colors.textSecondary,
-    textAlign: 'center',
-    marginBottom: 24,
-  },
-  otpInput: {
-    backgroundColor: colors.background,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: 8,
-    padding: 16,
-    fontSize: 24,
-    letterSpacing: 8,
-    textAlign: 'center',
-    width: '100%',
-    color: colors.text,
-    marginBottom: 24,
-  },
-  modalButtons: {
-    flexDirection: 'row',
-    gap: 16,
-    width: '100%',
-  },
+  profileInfo: { flex: 1 },
+  profileName: { fontSize: 18, fontWeight: '800', color: '#FFFFFF', marginBottom: 2 },
+  profileEmail: { fontSize: 12, color: 'rgba(255,255,255,0.7)', fontWeight: '500', marginBottom: 6 },
+  verifiedBadge: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  verifiedText: { fontSize: 11, color: '#4ADE80', fontWeight: '700' },
+  sectionDesc: { fontSize: 12, fontWeight: '500', marginTop: 4 },
+  radiusChip: { paddingVertical: 8, paddingHorizontal: 16, borderRadius: R.pill, borderWidth: 1.5 },
+  radiusChipText: { fontSize: 13, fontWeight: '700' },
+  themeGrid: { flexDirection: 'row', gap: 10, marginTop: 10 },
+  themeCard: { flex: 1, borderRadius: R.lg, padding: 14, alignItems: 'center', gap: 8 },
+  themeIconWrap: { width: 44, height: 44, borderRadius: 22, justifyContent: 'center', alignItems: 'center' },
+  themeLabel: { fontSize: 12, fontWeight: '700' },
+  themeDot: { width: 6, height: 6, borderRadius: 3 },
+  dangerZone: { marginHorizontal: 16, marginBottom: 14, borderRadius: R.lg, padding: 18, borderWidth: 1 },
+  dangerHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 },
+  dangerTitle: { fontSize: 14, fontWeight: '800', letterSpacing: 0.3 },
+  dangerDesc: { fontSize: 12, lineHeight: 18 },
+  footer: { textAlign: 'center', fontSize: 12, fontWeight: '500', paddingVertical: 16 },
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'center', alignItems: 'center', padding: 24 },
+  modalBox: { borderRadius: R.xl, padding: 28, width: '100%', alignItems: 'center', gap: 12, ...SHADOWS.elevated },
+  modalTitle: { fontSize: 20, fontWeight: '800' },
+  modalDesc: { fontSize: 13, textAlign: 'center' },
+  otpInput: { borderWidth: 1.5, borderRadius: R.md, padding: 16, fontSize: 28, letterSpacing: 10, textAlign: 'center', width: '100%', fontWeight: '700' },
 });
 
 export default SettingsScreen;

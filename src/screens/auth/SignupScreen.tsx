@@ -1,10 +1,21 @@
-import React, { useState, useEffect } from 'react';
-import { View, StyleSheet, Text, TextInput, TouchableOpacity, SafeAreaView, KeyboardAvoidingView, Platform, ActivityIndicator, Image, StatusBar } from 'react-native';
+/**
+ * Signup Screen — Premium glassmorphism card with Terms & Conditions
+ */
+
+import React, { useState, useEffect, useRef } from 'react';
+import {
+  View, StyleSheet, Text, TouchableOpacity, SafeAreaView,
+  KeyboardAvoidingView, Platform, ActivityIndicator,
+  Image, StatusBar, Animated, ScrollView,
+} from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useAuthStore } from '@store/useAuthStore';
 import { useTheme } from '@hooks/useTheme';
-import { MaterialIcons } from '@expo/vector-icons';
-import { checkTermsAccepted, setTermsAccepted as saveTerms } from '@utils/storage';
+import FloatingLabelInput from '@components/FloatingLabelInput';
 import TermsModal from '@components/TermsModal';
+import { checkTermsAccepted, setTermsAccepted as saveTerms } from '@utils/storage';
+import Icon from '@components/Icon';
+import { GRADIENTS, SHADOWS, RADIUS } from '@/constants/theme';
 
 const SignupScreen = ({ navigation }: any) => {
   const [email, setEmail] = useState('');
@@ -12,32 +23,39 @@ const SignupScreen = ({ navigation }: any) => {
   const [termsAccepted, setTermsAccepted] = useState(false);
   const [showTermsModal, setShowTermsModal] = useState(false);
   const [termsInitialized, setTermsInitialized] = useState(false);
-  
-  const { colors } = useTheme();
-  const styles = getStyles(colors);
-  
-  const requestOtp = useAuthStore(state => state.requestOtp);
-  const verifyOtp = useAuthStore(state => state.verifyOtp);
-  const otpSent = useAuthStore(state => state.otpSent);
-  const resetOtpState = useAuthStore(state => state.resetOtpState);
-  
-  const isLoading = useAuthStore(state => state.isLoading);
-  const error = useAuthStore(state => state.error);
-  const clearError = useAuthStore(state => state.clearError);
+  const { colors, isDark } = useTheme();
+
+  const requestOtp = useAuthStore(s => s.requestOtp);
+  const verifyOtp = useAuthStore(s => s.verifyOtp);
+  const otpSent = useAuthStore(s => s.otpSent);
+  const resetOtpState = useAuthStore(s => s.resetOtpState);
+  const isLoading = useAuthStore(s => s.isLoading);
+  const error = useAuthStore(s => s.error);
+  const clearError = useAuthStore(s => s.clearError);
+
+  const floatAnim = useRef(new Animated.Value(0)).current;
+  const cardAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
-    const initTerms = async () => {
-      const isAccepted = await checkTermsAccepted();
-      setTermsAccepted(isAccepted);
-      if (!isAccepted) {
-        setShowTermsModal(true);
-      }
+    const init = async () => {
+      const accepted = await checkTermsAccepted();
+      setTermsAccepted(accepted);
+      if (!accepted) setShowTermsModal(true);
       setTermsInitialized(true);
     };
-    initTerms();
+    init();
 
-    return () => resetOtpState(); // Reset when leaving
-  }, [resetOtpState]);
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(floatAnim, { toValue: -8, duration: 1800, useNativeDriver: true }),
+        Animated.timing(floatAnim, { toValue: 0, duration: 1800, useNativeDriver: true }),
+      ])
+    ).start();
+
+    Animated.spring(cardAnim, { toValue: 1, useNativeDriver: true, bounciness: 6, speed: 8, delay: 200 }).start();
+
+    return () => resetOtpState();
+  }, []);
 
   const handleAcceptTerms = async () => {
     await saveTerms(true);
@@ -53,248 +71,154 @@ const SignupScreen = ({ navigation }: any) => {
 
   const handleAction = async () => {
     if (!email) return;
-    if (otpSent && otp) {
-      await verifyOtp(email, otp);
-    } else if (!otpSent) {
-      await requestOtp(email, 'signup');
-    }
+    if (otpSent && otp) await verifyOtp(email, otp);
+    else if (!otpSent) await requestOtp(email, 'signup');
   };
 
+  const canSubmit = !!email && (!otpSent || !!otp) && termsAccepted && !isLoading;
+
   return (
-    <SafeAreaView style={styles.container}>
-      <KeyboardAvoidingView 
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        style={styles.keyboardView}
-      >
-        <View style={styles.formContainer}>
-          {/* Back Button */}
-          <TouchableOpacity 
-            style={styles.backButton} 
-            onPress={() => {
-              clearError();
-              navigation.goBack();
-            }}
-          >
-            <MaterialIcons name="arrow-back" size={24} color={colors.text} />
-          </TouchableOpacity>
+    <SafeAreaView style={[styles.container, { paddingTop: Platform.OS === 'android' ? StatusBar.currentHeight : 0 }]}>
+      <LinearGradient colors={isDark ? GRADIENTS.heroDark : GRADIENTS.hero} style={styles.bgGradient}>
 
-          {/* Header */}
-          <View style={styles.header}>
-            <Image 
-              source={require('../../../assets/WakeWay_log.png')} 
-              style={styles.logo} 
-              resizeMode="contain" 
-            />
-            <Text style={styles.title}>{otpSent ? 'Check Your Email' : 'Create Account'}</Text>
-            <Text style={styles.subtitle}>
-              {otpSent ? `We sent a code to ${email}` : 'Sign up using a one-time code'}
-            </Text>
-          </View>
+        {/* Decorative circles */}
+        <View style={[styles.deco1, { backgroundColor: 'rgba(255,255,255,0.06)' }]} />
+        <View style={[styles.deco2, { backgroundColor: 'rgba(255,255,255,0.04)' }]} />
 
-          {/* Error Message */}
-          {error && (
-            <View style={styles.errorContainer}>
-              <Text style={styles.errorText}>{error.message}</Text>
-            </View>
-          )}
+        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.kbView}>
+          <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
 
-          {/* Form */}
-          {!otpSent ? (
-            <View style={styles.inputGroup}>
-              <Text style={styles.label}>Email address</Text>
-              <TextInput
-                style={styles.input}
-                placeholder="Enter your email"
-                placeholderTextColor={colors.textSecondary}
-                value={email}
-                onChangeText={(text) => {
-                  setEmail(text);
-                  if (error) clearError();
-                }}
-                autoCapitalize="none"
-                keyboardType="email-address"
-                autoCorrect={false}
-              />
-            </View>
-          ) : (
-            <View style={styles.inputGroup}>
-              <Text style={styles.label}>Verification Code</Text>
-              <TextInput
-                style={styles.input}
-                placeholder="Enter 6-digit code"
-                placeholderTextColor={colors.textSecondary}
-                value={otp}
-                onChangeText={(text) => {
-                  setOtp(text);
-                  if (error) clearError();
-                }}
-                keyboardType="number-pad"
-                maxLength={6}
-              />
-            </View>
-          )}
+            {/* Back + Logo */}
+            <TouchableOpacity style={styles.backBtn} onPress={() => { clearError(); navigation.goBack(); }}>
+              <Icon name="arrow-back" size={22} color="rgba(255,255,255,0.85)" />
+            </TouchableOpacity>
 
-          <TouchableOpacity 
-            style={[styles.button, (!email || (otpSent && !otp) || !termsAccepted) && styles.buttonDisabled]} 
-            onPress={handleAction}
-            disabled={(!email || (otpSent && !otp)) || isLoading || !termsAccepted}
-          >
-            {isLoading ? (
-              <ActivityIndicator color="#FFFFFF" />
-            ) : (
-              <Text style={styles.buttonText}>{otpSent ? 'Verify Code' : 'Send Code'}</Text>
-            )}
-          </TouchableOpacity>
+            <Animated.View style={[styles.logoWrap, { transform: [{ translateY: floatAnim }] }]}>
+              <Image source={require('../../../assets/WakeWay_log.png')} style={styles.logo} resizeMode="contain" />
+            </Animated.View>
 
-          {otpSent && (
-            <View style={styles.footer}>
-              <TouchableOpacity onPress={resetOtpState}>
-                <Text style={styles.footerLink}>Change Email</Text>
-              </TouchableOpacity>
-            </View>
-          )}
-
-          <View style={[styles.footer, { marginTop: otpSent ? 16 : 32 }]}>
-            <TouchableOpacity onPress={() => setShowTermsModal(true)}>
-              <Text style={[styles.footerLink, { color: termsAccepted ? colors.textSecondary : colors.warning, fontSize: 13, textDecorationLine: 'underline' }]}>
-                {termsAccepted ? 'Review Terms & Conditions' : '⚠️ Action Required: Accept Terms & Conditions'}
+            {/* Glass card */}
+            <Animated.View style={[styles.card, {
+              backgroundColor: isDark ? 'rgba(17,24,39,0.92)' : 'rgba(255,255,255,0.92)',
+              opacity: cardAnim,
+              transform: [{ translateY: cardAnim.interpolate({ inputRange: [0, 1], outputRange: [30, 0] }) }],
+              ...SHADOWS.elevated,
+            }]}>
+              <Text style={[styles.title, { color: colors.text }]}>
+                {otpSent ? 'Almost There! 🎉' : 'Create Account 🚀'}
               </Text>
-            </TouchableOpacity>
-          </View>
-          
-          <View style={[styles.footer, { marginTop: 16 }]}>
-            <Text style={styles.footerText}>Already have an account? </Text>
-            <TouchableOpacity onPress={() => {
-              clearError();
-              navigation.navigate('Login');
-            }}>
-              <Text style={styles.footerLink}>Log In</Text>
-            </TouchableOpacity>
-          </View>
+              <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
+                {otpSent ? `Enter the code we sent to ${email}` : 'Join WakeWay — never miss your stop again'}
+              </Text>
 
-        </View>
+              {/* Error */}
+              {error && (
+                <View style={[styles.errorBox, { backgroundColor: colors.danger + '15', borderColor: colors.danger + '40' }]}>
+                  <Text style={[styles.errorText, { color: colors.danger }]}>⚠ {error.message}</Text>
+                </View>
+              )}
 
-        {termsInitialized && (
-          <TermsModal 
-            visible={showTermsModal} 
-            onAccept={handleAcceptTerms} 
-            onDecline={handleDeclineTerms}
-          />
-        )}
-      </KeyboardAvoidingView>
+              {/* Input */}
+              {!otpSent ? (
+                <FloatingLabelInput
+                  label="Email address"
+                  value={email}
+                  onChangeText={t => { setEmail(t); if (error) clearError(); }}
+                  keyboardType="email-address"
+                  icon="mail-outline"
+                />
+              ) : (
+                <FloatingLabelInput
+                  label="6-digit verification code"
+                  value={otp}
+                  onChangeText={t => { setOtp(t); if (error) clearError(); }}
+                  keyboardType="number-pad"
+                  icon="keypad-outline"
+                  maxLength={6}
+                />
+              )}
+
+              {/* Terms status */}
+              <TouchableOpacity
+                style={[styles.termsRow, { backgroundColor: termsAccepted ? colors.success + '12' : colors.warning + '12', borderColor: termsAccepted ? colors.success + '40' : colors.warning + '40' }]}
+                onPress={() => setShowTermsModal(true)}
+              >
+                <Icon name={termsAccepted ? 'checkmark-circle' : 'alert-circle-outline'} size={18} color={termsAccepted ? colors.success : colors.warning} />
+                <Text style={[styles.termsText, { color: termsAccepted ? colors.success : colors.warning }]}>
+                  {termsAccepted ? 'Terms & Conditions accepted' : 'Please accept Terms & Conditions'}
+                </Text>
+                <Icon name="chevron-forward" size={14} color={termsAccepted ? colors.success : colors.warning} />
+              </TouchableOpacity>
+
+              {/* CTA */}
+              <TouchableOpacity
+                style={[styles.ctaWrap, { opacity: canSubmit ? 1 : 0.5 }]}
+                onPress={handleAction}
+                disabled={!canSubmit}
+                activeOpacity={0.85}
+              >
+                <LinearGradient colors={GRADIENTS.primaryVibrant} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={styles.ctaGradient}>
+                  {isLoading
+                    ? <ActivityIndicator color="#FFF" />
+                    : <Text style={styles.ctaText}>{otpSent ? 'Verify & Sign Up →' : 'Send Code →'}</Text>
+                  }
+                </LinearGradient>
+              </TouchableOpacity>
+
+              {/* Footer links */}
+              <View style={styles.footerLinks}>
+                {otpSent && (
+                  <TouchableOpacity onPress={resetOtpState}>
+                    <Text style={[styles.linkText, { color: colors.primary }]}>← Change Email</Text>
+                  </TouchableOpacity>
+                )}
+                <TouchableOpacity onPress={() => { clearError(); navigation.navigate('Login'); }}>
+                  <Text style={[styles.linkText, { color: colors.textSecondary }]}>
+                    Already a member? <Text style={{ color: colors.primary, fontWeight: '700' }}>Log in</Text>
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            </Animated.View>
+
+            <Text style={styles.legal}>Your data is private and encrypted. We never share it.</Text>
+          </ScrollView>
+        </KeyboardAvoidingView>
+      </LinearGradient>
+
+      {termsInitialized && (
+        <TermsModal visible={showTermsModal} onAccept={handleAcceptTerms} onDecline={handleDeclineTerms} />
+      )}
     </SafeAreaView>
   );
 };
 
-const getStyles = (colors: any) => StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: colors.background,
-    paddingTop: Platform.OS === 'android' ? StatusBar.currentHeight : 0,
+const styles = StyleSheet.create({
+  container: { flex: 1 },
+  bgGradient: { flex: 1 },
+  deco1: { position: 'absolute', width: 300, height: 300, borderRadius: 150, top: -80, right: -80 },
+  deco2: { position: 'absolute', width: 200, height: 200, borderRadius: 100, bottom: 80, left: -60 },
+  kbView: { flex: 1 },
+  scroll: { flexGrow: 1, justifyContent: 'center', padding: 24, paddingBottom: 40 },
+  backBtn: { width: 40, height: 40, justifyContent: 'center', marginBottom: 8 },
+  logoWrap: { alignItems: 'center', marginBottom: 24 },
+  logo: { width: 80, height: 80, borderRadius: 20 },
+  card: { borderRadius: RADIUS.xl, padding: 28, borderWidth: 1, borderColor: 'rgba(255,255,255,0.15)' },
+  title: { fontSize: 24, fontWeight: '800', marginBottom: 6, textAlign: 'center' },
+  subtitle: { fontSize: 14, textAlign: 'center', marginBottom: 24, lineHeight: 20 },
+  errorBox: { borderRadius: RADIUS.md, padding: 12, marginBottom: 16, borderWidth: 1 },
+  errorText: { fontSize: 13, fontWeight: '600' },
+  termsRow: {
+    flexDirection: 'row', alignItems: 'center', gap: 10,
+    paddingVertical: 12, paddingHorizontal: 14,
+    borderRadius: RADIUS.md, borderWidth: 1, marginBottom: 16,
   },
-  keyboardView: {
-    flex: 1,
-  },
-  formContainer: {
-    flex: 1,
-    paddingHorizontal: 24,
-    justifyContent: 'center',
-  },
-  backButton: {
-    width: 40,
-    height: 40,
-    justifyContent: 'center',
-    alignItems: 'flex-start',
-    marginBottom: 0,
-    marginTop: 20,
-  },
-  header: {
-    alignItems: 'center',
-    marginBottom: 40,
-  },
-  logo: {
-    width: 80,
-    height: 80,
-    borderRadius: 24,
-    marginBottom: 20,
-  },
-  title: {
-    fontSize: 28,
-    fontWeight: 'bold',
-    color: colors.text,
-    marginBottom: 8,
-    textAlign: 'center',
-  },
-  subtitle: {
-    fontSize: 16,
-    color: colors.textSecondary,
-    textAlign: 'center',
-  },
-  errorContainer: {
-    backgroundColor: colors.danger + '20',
-    padding: 12,
-    borderRadius: 8,
-    marginBottom: 20,
-    borderLeftWidth: 4,
-    borderLeftColor: colors.danger,
-  },
-  errorText: {
-    color: colors.danger,
-    fontSize: 14,
-  },
-  inputGroup: {
-    marginBottom: 24,
-  },
-  label: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: colors.text,
-    marginBottom: 8,
-  },
-  input: {
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: 12,
-    paddingHorizontal: 16,
-    height: 52,
-    fontSize: 16,
-    color: colors.text,
-  },
-  button: {
-    backgroundColor: colors.primary,
-    height: 56,
-    borderRadius: 12,
-    justifyContent: 'center',
-    alignItems: 'center',
-    shadowColor: colors.primary,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-    elevation: 4,
-  },
-  buttonDisabled: {
-    opacity: 0.6,
-  },
-  buttonText: {
-    color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: 'bold',
-  },
-  footer: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    marginTop: 32,
-  },
-  footerText: {
-    color: colors.textSecondary,
-    fontSize: 15,
-  },
-  footerLink: {
-    color: colors.primary,
-    fontSize: 15,
-    fontWeight: 'bold',
-  },
+  termsText: { flex: 1, fontSize: 13, fontWeight: '600' },
+  ctaWrap: { borderRadius: RADIUS.lg, overflow: 'hidden' },
+  ctaGradient: { paddingVertical: 16, alignItems: 'center', justifyContent: 'center' },
+  ctaText: { color: '#FFF', fontSize: 16, fontWeight: '800', letterSpacing: 0.3 },
+  footerLinks: { alignItems: 'center', gap: 12, marginTop: 20 },
+  linkText: { fontSize: 14, fontWeight: '500', textAlign: 'center' },
+  legal: { textAlign: 'center', fontSize: 11, color: 'rgba(255,255,255,0.5)', marginTop: 20, paddingHorizontal: 24 },
 });
 
 export default SignupScreen;

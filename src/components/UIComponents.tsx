@@ -1,8 +1,8 @@
 /**
- * Reusable UI components
+ * Reusable UI components — Premium edition
  */
 
-import React from 'react';
+import React, { useRef } from 'react';
 import {
   TouchableOpacity,
   Text,
@@ -10,23 +10,25 @@ import {
   View,
   ActivityIndicator,
   ViewStyle,
-  TextStyle,
   Animated,
+  Platform,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useTheme } from '@hooks/useTheme';
-import { COLORS, DARK_COLORS } from '@/constants/theme';
+import { COLORS, DARK_COLORS, GRADIENTS, SHADOWS, RADIUS } from '@/constants/theme';
 export { COLORS, DARK_COLORS };
 
-// Button Component
+// ─── Button ──────────────────────────────────────────────────────────────────
+
 interface ButtonProps {
   onPress: () => void;
   title: string;
   loading?: boolean;
   disabled?: boolean;
-  variant?: 'primary' | 'danger' | 'success' | 'outline';
+  variant?: 'primary' | 'danger' | 'success' | 'outline' | 'warning' | 'ghost';
   size?: 'small' | 'medium' | 'large';
   style?: ViewStyle;
+  icon?: React.ReactNode;
 }
 
 export const Button: React.FC<ButtonProps> = ({
@@ -37,130 +39,203 @@ export const Button: React.FC<ButtonProps> = ({
   variant = 'primary',
   size = 'medium',
   style,
-}: ButtonProps) => {
-  const { colors } = useTheme();
+  icon,
+}) => {
+  const { colors, isDark } = useTheme();
+  const scaleAnim = useRef(new Animated.Value(1)).current;
 
-  const getBackgroundColor = () => {
+  const onPressIn = () => {
+    Animated.spring(scaleAnim, {
+      toValue: 0.95,
+      useNativeDriver: true,
+      speed: 50,
+      bounciness: 4,
+    }).start();
+  };
+
+  const onPressOut = () => {
+    Animated.spring(scaleAnim, {
+      toValue: 1,
+      useNativeDriver: true,
+      speed: 30,
+      bounciness: 6,
+    }).start();
+  };
+
+  const sizeStyle = {
+    small: { paddingVertical: 8, paddingHorizontal: 16, borderRadius: RADIUS.sm },
+    medium: { paddingVertical: 13, paddingHorizontal: 24, borderRadius: RADIUS.md },
+    large: { paddingVertical: 16, paddingHorizontal: 32, borderRadius: RADIUS.lg },
+  }[size];
+
+  const textSize = { small: 13, medium: 15, large: 17 }[size];
+
+  const isGradient = (variant === 'primary' || variant === 'danger' || variant === 'success') && !disabled;
+  const gradientColors = {
+    primary: GRADIENTS.primaryVibrant,
+    danger: ['#FF6B6B', '#EF4444'] as const,
+    success: ['#34D399', '#10B981'] as const,
+    warning: ['#FCD34D', '#F59E0B'] as const,
+    outline: ['transparent', 'transparent'] as const,
+    ghost: ['transparent', 'transparent'] as const,
+  }[variant] ?? GRADIENTS.primaryVibrant;
+
+  const getFlatColor = () => {
     if (disabled) return colors.border;
     switch (variant) {
-      case 'danger':
-        return colors.danger;
-      case 'success':
-        return colors.success;
-      case 'warning':
-        return colors.warning;
-      case 'outline':
-        return 'transparent';
-      default:
-        return colors.primary;
+      case 'warning': return colors.warning;
+      case 'outline': return 'transparent';
+      case 'ghost': return 'transparent';
+      default: return colors.primary;
     }
   };
 
-  const getSizeStyle = () => {
-    switch (size) {
-      case 'small':
-        return styles.buttonSmall;
-      case 'large':
-        return styles.buttonLarge;
-      default:
-        return styles.buttonMedium;
-    }
+  const getTextColor = () => {
+    if (disabled) return colors.textMuted;
+    if (variant === 'outline') return colors.primary;
+    if (variant === 'ghost') return colors.textSecondary;
+    return '#FFFFFF';
   };
 
-  const buttonBaseStyle = [
-    getSizeStyle(),
-    { backgroundColor: getBackgroundColor() },
-    variant === 'outline' && { borderWidth: 2, borderColor: colors.primary, backgroundColor: 'transparent' },
-    style,
-  ];
+  const shadowStyle = (!disabled && variant === 'primary') ? SHADOWS.primary
+    : (!disabled && variant === 'danger') ? SHADOWS.danger
+    : (!disabled && variant === 'success') ? SHADOWS.success
+    : {};
+
+  const inner = (
+    <View style={[styles.buttonInner, sizeStyle]}>
+      {loading ? (
+        <ActivityIndicator color={variant === 'outline' || variant === 'ghost' ? colors.primary : '#FFFFFF'} size="small" />
+      ) : (
+        <View style={styles.buttonContent}>
+          {icon && <View style={styles.buttonIcon}>{icon}</View>}
+          <Text style={[styles.buttonText, { fontSize: textSize, color: getTextColor() }]}>{title}</Text>
+        </View>
+      )}
+    </View>
+  );
 
   return (
-    <TouchableOpacity
-      onPress={onPress}
-      disabled={disabled || loading}
-      style={[styles.buttonWrapper, buttonBaseStyle]}
-      activeOpacity={0.7}
-    >
-      {loading ? (
-        <ActivityIndicator color={variant === 'outline' ? colors.primary : "#FFFFFF"} />
-      ) : (
-        <Text style={[
-           styles.buttonText, 
-           variant === 'outline' && { color: colors.primary, fontSize: 16, fontWeight: '600' }, 
-           disabled && variant === 'outline' && { color: colors.textSecondary }
-        ]}>
-          {title}
-        </Text>
-      )}
-    </TouchableOpacity>
+    <Animated.View style={[{ transform: [{ scale: scaleAnim }] }, shadowStyle, style]}>
+      <TouchableOpacity
+        onPress={onPress}
+        onPressIn={onPressIn}
+        onPressOut={onPressOut}
+        disabled={disabled || loading}
+        activeOpacity={1}
+        style={{ borderRadius: sizeStyle.borderRadius, overflow: 'hidden' }}
+      >
+        {isGradient ? (
+          <LinearGradient colors={gradientColors} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}>
+            {inner}
+          </LinearGradient>
+        ) : (
+          <View style={[
+            { backgroundColor: getFlatColor() },
+            (variant === 'outline') && { borderWidth: 1.5, borderColor: disabled ? colors.border : colors.primary },
+            { borderRadius: sizeStyle.borderRadius },
+          ]}>
+            {inner}
+          </View>
+        )}
+      </TouchableOpacity>
+    </Animated.View>
   );
 };
 
-// Card Component
+// ─── Card ─────────────────────────────────────────────────────────────────────
+
 interface CardProps {
   children: React.ReactNode;
   style?: ViewStyle;
   onPress?: () => void;
+  variant?: 'default' | 'elevated' | 'glass' | 'gradient-border';
+  gradientBorderColor?: string;
 }
 
-export const Card: React.FC<CardProps> = ({ children, style, onPress }: CardProps) => {
-  const { colors } = useTheme();
-  
+export const Card: React.FC<CardProps> = ({ children, style, onPress, variant = 'default', gradientBorderColor }) => {
+  const { colors, isDark } = useTheme();
+
+  const baseStyle: ViewStyle = {
+    backgroundColor: colors.surface,
+    borderRadius: RADIUS.lg,
+    padding: 20,
+    marginVertical: 6,
+    ...SHADOWS.subtle,
+  };
+
+  const variantStyle: ViewStyle =
+    variant === 'elevated' ? { ...SHADOWS.elevated } :
+    variant === 'glass' ? {
+      backgroundColor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(255,255,255,0.8)',
+      borderWidth: 1,
+      borderColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(255,255,255,0.9)',
+      ...SHADOWS.medium,
+    } :
+    variant === 'gradient-border' ? {
+      borderWidth: 1.5,
+      borderColor: gradientBorderColor || colors.primary,
+      ...SHADOWS.medium,
+    } : {};
+
   if (onPress) {
     return (
       <TouchableOpacity
-        style={[styles.card, { backgroundColor: colors.surface }, style]}
+        style={[baseStyle, variantStyle, style]}
         onPress={onPress}
-        activeOpacity={0.7}
+        activeOpacity={0.75}
       >
         {children}
       </TouchableOpacity>
     );
   }
 
-  return <View style={[styles.card, { backgroundColor: colors.surface }, style]}>{children}</View>;
+  return <View style={[baseStyle, variantStyle, style]}>{children}</View>;
 };
 
-// Badge Component
+// ─── Badge ────────────────────────────────────────────────────────────────────
+
 interface BadgeProps {
   text: string;
-  variant?: 'primary' | 'danger' | 'success' | 'warning';
+  variant?: 'primary' | 'danger' | 'success' | 'warning' | 'muted';
   style?: ViewStyle;
+  size?: 'sm' | 'md';
 }
 
-export const Badge: React.FC<BadgeProps> = ({ text, variant = 'primary', style }: BadgeProps) => {
+export const Badge: React.FC<BadgeProps> = ({ text, variant = 'primary', style, size = 'md' }) => {
   const { colors } = useTheme();
-  
-  const getBackgroundColor = () => {
-    switch (variant) {
-      case 'danger':
-        return colors.danger;
-      case 'success':
-        return colors.success;
-      case 'warning':
-        return colors.warning;
-      default:
-        return colors.primary;
-    }
+
+  const bgColors = {
+    primary: colors.primary + '20',
+    danger: colors.danger + '20',
+    success: colors.success + '20',
+    warning: colors.warning + '20',
+    muted: colors.border,
+  };
+
+  const textColors = {
+    primary: colors.primary,
+    danger: colors.danger,
+    success: colors.success,
+    warning: colors.warningDark || colors.warning,
+    muted: colors.textSecondary,
   };
 
   return (
-    <View style={[styles.badge, { backgroundColor: getBackgroundColor() }, style]}>
-      <Text style={styles.badgeText}>{text}</Text>
+    <View style={[styles.badge, { backgroundColor: bgColors[variant], paddingVertical: size === 'sm' ? 3 : 5, paddingHorizontal: size === 'sm' ? 8 : 12 }, style]}>
+      <Text style={[styles.badgeText, { color: textColors[variant], fontSize: size === 'sm' ? 10 : 12 }]}>{text}</Text>
     </View>
   );
 };
 
-// Loading Spinner
+// ─── Loading Spinner ──────────────────────────────────────────────────────────
+
 interface LoadingSpinnerProps {
   size?: 'small' | 'large';
   color?: string;
 }
 
-export const LoadingSpinner: React.FC<LoadingSpinnerProps> = ({
-  size = 'large',
-  color,
-}) => {
+export const LoadingSpinner: React.FC<LoadingSpinnerProps> = ({ size = 'large', color }) => {
   const { colors } = useTheme();
   return (
     <View style={styles.loadingContainer}>
@@ -169,131 +244,153 @@ export const LoadingSpinner: React.FC<LoadingSpinnerProps> = ({
   );
 };
 
-// Distance Display
+// ─── Skeleton Loader ──────────────────────────────────────────────────────────
+
+export const SkeletonLoader: React.FC<{ width?: number | string; height?: number; borderRadius?: number; style?: ViewStyle }> = ({
+  width = '100%',
+  height = 16,
+  borderRadius = RADIUS.sm,
+  style,
+}) => {
+  const { colors } = useTheme();
+  const opacityAnim = useRef(new Animated.Value(0.4)).current;
+
+  React.useEffect(() => {
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(opacityAnim, { toValue: 1, duration: 700, useNativeDriver: true }),
+        Animated.timing(opacityAnim, { toValue: 0.4, duration: 700, useNativeDriver: true }),
+      ])
+    );
+    loop.start();
+    return () => loop.stop();
+  }, []);
+
+  return (
+    <Animated.View
+      style={[{ width: width as any, height, borderRadius, backgroundColor: colors.border, opacity: opacityAnim }, style]}
+    />
+  );
+};
+
+// ─── Distance Display ─────────────────────────────────────────────────────────
+
 interface DistanceDisplayProps {
   distance: number | null;
   radius: number;
-  unit?: 'm' | 'km';
 }
 
-export const DistanceDisplay: React.FC<DistanceDisplayProps> = ({
-  distance,
-  radius,
-  unit = 'm',
-}: DistanceDisplayProps) => {
-  const formatDistance = (d: number | null) => {
-    if (d === null) return '...';
-    if (unit === 'km' && d > 1000) {
-      return `${(d / 1000).toFixed(1)} km`;
-    }
+export const DistanceDisplay: React.FC<DistanceDisplayProps> = ({ distance, radius }) => {
+  const { colors } = useTheme();
+
+  const formatDist = (d: number | null) => {
+    if (d === null) return '—';
+    if (d >= 1000) return `${(d / 1000).toFixed(1)} km`;
     return `${Math.round(d)} m`;
   };
 
-  const distanceValue = formatDistance(distance);
-  const radiusValue = formatDistance(radius);
-  const { colors } = useTheme();
+  const getStatusColor = () => {
+    if (distance === null) return colors.textSecondary;
+    const pct = distance / (radius * 3);
+    if (pct <= 0.33) return colors.danger;
+    if (pct <= 0.66) return colors.warning;
+    return colors.success;
+  };
 
   return (
-    <View style={styles.distanceContainer}>
+    <View style={[styles.distanceContainer, { backgroundColor: getStatusColor() + '12', borderRadius: RADIUS.lg, borderWidth: 1, borderColor: getStatusColor() + '30' }]}>
       <Text style={[styles.distanceLabel, { color: colors.textSecondary }]}>Distance to Stop</Text>
-      <Text style={[styles.distanceValue, { color: colors.primary }]}>{distanceValue}</Text>
-      <Text style={[styles.distanceCaption, { color: colors.textSecondary }]}>Trigger radius: {radiusValue}</Text>
+      <Text style={[styles.distanceValue, { color: getStatusColor() }]}>{formatDist(distance)}</Text>
+      <Text style={[styles.distanceCaption, { color: colors.textMuted || colors.textSecondary }]}>Alert radius: {formatDist(radius)}</Text>
     </View>
   );
 };
 
-// Styles
+// ─── Section Header ───────────────────────────────────────────────────────────
+
+export const SectionHeader: React.FC<{ title: string; right?: React.ReactNode; style?: ViewStyle }> = ({ title, right, style }) => {
+  const { colors } = useTheme();
+  return (
+    <View style={[styles.sectionHeader, style]}>
+      <Text style={[styles.sectionHeaderText, { color: colors.text }]}>{title}</Text>
+      {right}
+    </View>
+  );
+};
+
+// ─── Divider ─────────────────────────────────────────────────────────────────
+
+export const Divider: React.FC<{ style?: ViewStyle }> = ({ style }) => {
+  const { colors } = useTheme();
+  return <View style={[{ height: 1, backgroundColor: colors.border, marginVertical: 4 }, style]} />;
+};
+
+// ─── Styles ───────────────────────────────────────────────────────────────────
+
 const styles = StyleSheet.create({
-  // Button styles
-  buttonSmall: {
-    paddingVertical: 8,
-    paddingHorizontal: 16,
-    borderRadius: 8,
-  },
-  buttonMedium: {
-    paddingVertical: 12,
-    paddingHorizontal: 24,
-    borderRadius: 12,
-  },
-  buttonLarge: {
-    paddingVertical: 16,
-    paddingHorizontal: 32,
-    borderRadius: 16,
-  },
-  buttonWrapper: {
+  buttonInner: {
     justifyContent: 'center',
     alignItems: 'center',
   },
+  buttonContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  buttonIcon: {
+    marginRight: 8,
+  },
   buttonText: {
-    color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: '600',
+    fontWeight: '700',
+    letterSpacing: 0.2,
   },
-  buttonDisabled: {
-    opacity: 0.5,
-  },
-  outlineButton: {
-    borderWidth: 2,
-    borderColor: COLORS.primary,
-    backgroundColor: 'transparent',
-  },
-  outlineButtonText: {
-    color: COLORS.primary,
-    fontSize: 16,
-    fontWeight: '600',
-  },
-
-  // Card styles
-  card: {
-    backgroundColor: COLORS.surface,
-    borderRadius: 16,
-    padding: 20,
-    marginVertical: 8,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.05,
-    shadowRadius: 12,
-    elevation: 3,
-  },
-
-  // Badge styles
   badge: {
-    paddingVertical: 4,
-    paddingHorizontal: 12,
-    borderRadius: 12,
+    borderRadius: RADIUS.pill,
     alignSelf: 'flex-start',
   },
   badgeText: {
-    color: '#FFFFFF',
-    fontSize: 12,
-    fontWeight: '600',
+    fontWeight: '700',
+    letterSpacing: 0.3,
   },
-
-  // Loading styles
   loadingContainer: {
     justifyContent: 'center',
     alignItems: 'center',
     padding: 32,
   },
-
-  // Distance styles
   distanceContainer: {
     alignItems: 'center',
-    paddingVertical: 16,
+    paddingVertical: 18,
+    paddingHorizontal: 24,
+    marginVertical: 8,
   },
   distanceLabel: {
-    fontSize: 12,
-    color: COLORS.textSecondary,
-    marginBottom: 8,
+    fontSize: 11,
+    fontWeight: '600',
+    letterSpacing: 0.8,
+    textTransform: 'uppercase',
+    marginBottom: 6,
   },
   distanceValue: {
-    fontSize: 32,
-    fontWeight: 'bold',
-    color: COLORS.primary,
+    fontSize: 40,
+    fontWeight: '800',
+    letterSpacing: -1,
     marginBottom: 4,
   },
   distanceCaption: {
     fontSize: 12,
-    color: COLORS.textSecondary,
+    fontWeight: '500',
+  },
+  sectionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+    marginTop: 8,
+    paddingHorizontal: 4,
+  },
+  sectionHeaderText: {
+    fontSize: 13,
+    fontWeight: '700',
+    letterSpacing: 0.8,
+    textTransform: 'uppercase',
   },
 });
