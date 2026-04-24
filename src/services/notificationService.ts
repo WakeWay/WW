@@ -8,6 +8,7 @@ import { Audio } from 'expo-av';
 import { useTripStore } from '@store/useTripStore';
 import {
   ALARM_NOTIFICATION_CHANNEL_ID,
+  TRACKING_NOTIFICATION_CHANNEL_ID,
   ALARM_SOUND_URI,
   ALARM_VIBRATION_PATTERN,
   ALARM_DURATION_SECONDS,
@@ -27,6 +28,9 @@ Notifications.setNotificationHandler({
 class NotificationService {
   private alarmSound: Audio.Sound | null = null;
   private alarmTimeoutId: any = null;
+  /** Fixed identifier for the persistent trip-status notification */
+  private readonly TRIP_NOTIF_ID = 'wakeway_trip_active';
+  private tripNotifScheduledId: string | null = null;
 
   /**
    * Request notification permissions
@@ -58,9 +62,82 @@ class NotificationService {
         sound: 'default',
         enableVibrate: true,
       });
+
+      // Also create the low-priority tracking channel
+      await Notifications.setNotificationChannelAsync(TRACKING_NOTIFICATION_CHANNEL_ID, {
+        name: 'Trip Tracking',
+        importance: Notifications.AndroidImportance.LOW,
+        sound: undefined,
+        enableVibrate: false,
+        showBadge: false,
+      });
     } catch (error) {
       console.error('Failed to create alarm channel:', error);
     }
+  }
+
+  /**
+   * Show / update the persistent trip-status notification.
+   * Safe to call on every location update — cancels the previous one first
+   * so the notification is refreshed in place rather than stacking.
+   */
+  async showTripNotification(trip: {
+    destinationName: string;
+    distanceToDestination?: number | null;
+    radiusMeters: number;
+  }): Promise<void> {
+    try {
+      // Cancel previous instance so the tray entry is replaced, not duplicated
+      if (this.tripNotifScheduledId) {
+        await Notifications.dismissNotificationAsync(this.tripNotifScheduledId).catch(() => {});
+      }
+
+      const distM = trip.distanceToDestination ?? null;
+      const distText = distM != null
+        ? distM >= 1000
+          ? `${(distM / 1000).toFixed(1)} km away`
+          : `${Math.round(distM)} m away`
+        : 'Calculating distance…';
+
+      const alertText = distM != null && distM <= trip.radiusMeters
+        ? '🔔 Approaching your stop!'
+        : `📍 ${distText}`;
+
+      this.tripNotifScheduledId = await Notifications.scheduleNotificationAsync({
+        identifier: this.TRIP_NOTIF_ID,
+        content: {
+          title: `🚌 Trip to ${trip.destinationName}`,
+          body: alertText,
+          data: { type: 'trip_status' },
+          sound: false as any,
+          sticky: true,
+          autoDismiss: false,
+          ...(Platform.OS === 'android' && {
+            channelId: TRACKING_NOTIFICATION_CHANNEL_ID,
+            ongoing: true,
+            color: '#6366F1',
+            smallIcon: 'ic_launcher',
+          }),
+        },
+        trigger: null,
+      });
+    } catch (error) {
+      console.error('Failed to show trip notification:', error);
+    }
+  }
+
+  /**
+   * Dismiss the persistent trip-status notification
+   */
+  async clearTripNotification(): Promise<void> {
+    try {
+      if (this.tripNotifScheduledId) {
+        await Notifications.dismissNotificationAsync(this.tripNotifScheduledId).catch(() => {});
+        this.tripNotifScheduledId = null;
+      }
+      // Belt-and-suspenders: dismiss by identifier too
+      await Notifications.dismissNotificationAsync(this.TRIP_NOTIF_ID).catch(() => {});
+    } catch (_) {}
   }
 
   /**
@@ -82,13 +159,14 @@ class NotificationService {
         },
       ]);
 
+      const currentWaypoint = trip.waypoints[trip.currentWaypointIndex];
       const notificationId = await Notifications.scheduleNotificationAsync({
         content: {
           title: '🚨 Stop Alert',
-          body: `You are near ${trip.destinationName}`,
+          body: `You are near ${currentWaypoint?.name || 'your destination'}`,
           data: {
             tripId: trip.id,
-            destination: trip.destinationName,
+            destination: currentWaypoint?.name || 'Destination',
           },
           sound: 'default',
           vibrate: ALARM_VIBRATION_PATTERN,

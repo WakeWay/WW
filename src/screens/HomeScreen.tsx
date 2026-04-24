@@ -29,6 +29,7 @@ import { useTheme } from '@hooks/useTheme';
 import { formatDistance } from '@utils/distanceCalculator';
 import { GRADIENTS, SHADOWS, RADIUS, SPACING } from '@/constants/theme';
 import { useAuthStore } from '@store/useAuthStore';
+import { notificationService } from '@services/notificationService';
 
 // ─── Greeting helper ──────────────────────────────────────────────────────────
 
@@ -123,7 +124,9 @@ const HomeScreen = ({ navigation }: any) => {
   // Proximity progress (0 = at destination, 1 = far away)
   const getProximityProgress = () => {
     if (!activeTrip || activeTrip.distanceToDestination === null || activeTrip.distanceToDestination === undefined) return 1;
-    const referenceDistance = Math.max(activeTrip.radiusMeters * 5, 500);
+    const currentWaypoint = activeTrip.waypoints[activeTrip.currentWaypointIndex];
+    if (!currentWaypoint) return 1;
+    const referenceDistance = Math.max(currentWaypoint.radiusMeters * 5, 500);
     return Math.min(activeTrip.distanceToDestination / referenceDistance, 1);
   };
 
@@ -150,10 +153,15 @@ const HomeScreen = ({ navigation }: any) => {
     navigation.navigate('TripSetup');
   };
 
-  const handleStopTrip = async () => {
-    await dismissAlarm();
-    await stopTracking();
-    await store.endActiveTrip();
+  const handleStopTrip = () => {
+    // 1. Update store state synchronously
+    store.endActiveTrip();
+    // 2. Run all hardware/service/persistence cleanup concurrently without blocking
+    Promise.all([
+      notificationService.clearTripNotification(),
+      dismissAlarm(),
+      stopTracking(),
+    ]).catch(() => {});
   };
 
   const handleRefresh = () => {
@@ -216,7 +224,11 @@ const HomeScreen = ({ navigation }: any) => {
               {/* Destination name */}
               <View style={styles.destinationRow}>
                 <Icon name="location" size={18} color={colors.primary} />
-                <Text style={styles.destinationName} numberOfLines={1}>{activeTrip.destinationName}</Text>
+                <Text style={styles.destinationName} numberOfLines={1}>
+                  {activeTrip.waypoints.length > 1 
+                    ? `Stop ${activeTrip.currentWaypointIndex + 1} of ${activeTrip.waypoints.length}: ${activeTrip.waypoints[activeTrip.currentWaypointIndex]?.name}`
+                    : activeTrip.waypoints[0]?.name}
+                </Text>
               </View>
 
               {/* Proximity Ring + Distance */}
@@ -242,7 +254,7 @@ const HomeScreen = ({ navigation }: any) => {
                 <View style={styles.statPill}>
                   <Icon name="scan-circle-outline" size={14} color={colors.primary} />
                   <Text style={[styles.statPillLabel, { color: colors.textSecondary }]}>Radius</Text>
-                  <Text style={[styles.statPillValue, { color: colors.text }]}>{formatDistance(activeTrip.radiusMeters)}</Text>
+                  <Text style={[styles.statPillValue, { color: colors.text }]}>{formatDistance(activeTrip.waypoints[activeTrip.currentWaypointIndex]?.radiusMeters || 0)}</Text>
                 </View>
                 <View style={[styles.statPillDivider, { backgroundColor: colors.border }]} />
                 <View style={styles.statPill}>
@@ -318,25 +330,30 @@ const HomeScreen = ({ navigation }: any) => {
         </Animated.View>
 
         {/* ── Quick Stats ──────────────────────────────── */}
-        <View style={styles.statsRow}>
-          {[
-            { label: 'Total Trips', value: totalTrips, icon: 'airplane-outline', color: colors.primary, bg: colors.primary + '12' },
-            { label: 'Alarms Used', value: alarmsUsed, icon: 'alarm-outline', color: colors.accent, bg: colors.accent + '12' },
-            { label: 'Sound', value: store.settings.soundEnabled ? 1 : 0, icon: store.settings.soundEnabled ? 'volume-high-outline' : 'volume-mute-outline', color: colors.success, bg: colors.success + '12', displayText: store.settings.soundEnabled ? 'On' : 'Off' },
-          ].map(stat => (
-            <View key={stat.label} style={[styles.statCard, { backgroundColor: stat.bg, borderColor: stat.color + '25' }]}>
-              <View style={[styles.statIconWrap, { backgroundColor: stat.color + '20' }]}>
-                <Icon name={stat.icon} size={16} color={stat.color} />
-              </View>
-              {stat.displayText ? (
-                <Text style={[styles.statValue, { color: stat.color }]}>{stat.displayText}</Text>
-              ) : (
-                <AnimatedNumber value={stat.value} style={[styles.statValue, { color: stat.color }]} />
-              )}
-              <Text style={[styles.statLabel, { color: colors.textSecondary }]}>{stat.label}</Text>
-            </View>
-          ))}
-        </View>
+        <Card style={styles.statsCardContainer}>
+          <View style={styles.statsRowInside}>
+            {[
+              { label: 'Total Trips', value: totalTrips, icon: 'airplane-outline', color: colors.primary },
+              { label: 'Alarms', value: alarmsUsed, icon: 'alarm-outline', color: colors.accent },
+              { label: 'Sound', value: store.settings.soundEnabled ? 1 : 0, icon: store.settings.soundEnabled ? 'volume-high-outline' : 'volume-mute-outline', color: colors.success, displayText: store.settings.soundEnabled ? 'On' : 'Off' },
+            ].map((stat, index) => (
+              <React.Fragment key={stat.label}>
+                <View style={styles.statColumn}>
+                  <View style={[styles.statIconWrap, { backgroundColor: stat.color + '15' }]}>
+                    <Icon name={stat.icon} size={18} color={stat.color} />
+                  </View>
+                  {stat.displayText ? (
+                    <Text style={[styles.statValue, { color: colors.text }]}>{stat.displayText}</Text>
+                  ) : (
+                    <AnimatedNumber value={stat.value} style={[styles.statValue, { color: colors.text }]} />
+                  )}
+                  <Text style={[styles.statLabel, { color: colors.textSecondary }]}>{stat.label}</Text>
+                </View>
+                {index < 2 && <View style={[styles.statDivider, { backgroundColor: colors.border }]} />}
+              </React.Fragment>
+            ))}
+          </View>
+        </Card>
 
         {/* ── Error ───────────────────────────────────── */}
         {(store.error || trackingError) && (
@@ -458,11 +475,13 @@ const getStyles = (colors: any, isDark: boolean) => StyleSheet.create({
   featurePillText: { fontSize: 11, fontWeight: '700' },
 
   // Stats
-  statsRow: { flexDirection: 'row', marginHorizontal: 16, marginBottom: 12, gap: 10 },
-  statCard: { flex: 1, borderRadius: RADIUS.lg, padding: 14, alignItems: 'center', gap: 4, borderWidth: 1, ...SHADOWS.subtle },
-  statIconWrap: { width: 32, height: 32, borderRadius: 16, justifyContent: 'center', alignItems: 'center', marginBottom: 4 },
-  statValue: { fontSize: 22, fontWeight: '800' },
-  statLabel: { fontSize: 10, fontWeight: '600', textAlign: 'center' },
+  statsCardContainer: { marginHorizontal: 16, marginBottom: 12, paddingVertical: 18, paddingHorizontal: 16 },
+  statsRowInside: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  statColumn: { flex: 1, alignItems: 'center', gap: 4 },
+  statDivider: { width: 1, height: 40, marginHorizontal: 8 },
+  statIconWrap: { width: 36, height: 36, borderRadius: 18, justifyContent: 'center', alignItems: 'center', marginBottom: 4 },
+  statValue: { fontSize: 20, fontWeight: '800' },
+  statLabel: { fontSize: 12, fontWeight: '600' },
 
   // Error
   errorCard: { marginHorizontal: 16, marginBottom: 12, paddingVertical: 12 },

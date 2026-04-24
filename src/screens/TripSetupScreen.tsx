@@ -2,7 +2,7 @@
  * Trip Setup Screen — Step indicator, radius visualizer, sticky CTA
  */
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View, StyleSheet, Text, SafeAreaView, ScrollView,
   Switch, Platform, StatusBar, TextInput, TouchableOpacity,
@@ -105,23 +105,37 @@ const TripSetupScreen = ({ navigation, route }: any) => {
   const { colors, isDark } = useTheme();
   const { showAlert } = useAlert();
 
-  const destination = route?.params?.destination || null;
+  const [waypoints, setWaypoints] = useState<any[]>([]);
   const [selectedRadius, setSelectedRadius] = useState(DEFAULT_RADIUS_METERS);
-  const [destinationName, setDestinationName] = useState(route?.params?.destinationName || 'My Destination');
   const [useVibration, setUseVibration] = useState(store.settings.vibrationEnabled);
   const [useSound, setUseSound] = useState(store.settings.soundEnabled);
   const [loading, setLoading] = useState(false);
 
-  const currentStep = destination ? (selectedRadius !== DEFAULT_RADIUS_METERS ? 2 : 1) : 0;
+  // Append new waypoint when returning from MapScreen
+  useEffect(() => {
+    if (route?.params?.destination) {
+      const newLoc = route.params.destination;
+      const newName = route.params.destinationName || 'New Waypoint';
+      // Prevent duplicates
+      setWaypoints(prev => {
+        if (prev.some(wp => wp.location.latitude === newLoc.latitude && wp.location.longitude === newLoc.longitude)) {
+          return prev;
+        }
+        return [...prev, { location: newLoc, name: newName }];
+      });
+    }
+  }, [route?.params?.destination]);
 
-  if (!destination) {
+  const currentStep = waypoints.length > 0 ? (selectedRadius !== DEFAULT_RADIUS_METERS ? 2 : 1) : 0;
+
+  if (waypoints.length === 0) {
     return (
       <SafeAreaView style={[styles.container, { backgroundColor: colors.background, paddingTop: Platform.OS === 'android' ? StatusBar.currentHeight : 0 }]}>
         <LinearGradient colors={isDark ? GRADIENTS.heroDark : GRADIENTS.hero} style={styles.noDestGradient}>
           <View style={[styles.noDestIconBg]}>
             <Icon name="map-outline" size={48} color="#FFFFFF" />
           </View>
-          <Text style={styles.noDestTitle}>No Destination</Text>
+          <Text style={styles.noDestTitle}>No Destinations</Text>
           <Text style={styles.noDestDesc}>Pick a location on the map first</Text>
           <Button
             title="Open Map"
@@ -147,7 +161,12 @@ const TripSetupScreen = ({ navigation, route }: any) => {
         }
       }
       store.updateSettings({ vibrationEnabled: useVibration, soundEnabled: useSound });
-      createTrip(destination, selectedRadius, destinationName);
+      const finalWaypoints = waypoints.map((wp: any) => ({
+        location: wp.location,
+        name: wp.name,
+        radiusMeters: selectedRadius,
+      }));
+      createTrip(finalWaypoints);
       await startTracking();
       setLoading(false);
       navigation.navigate('HomeTab');
@@ -173,29 +192,46 @@ const TripSetupScreen = ({ navigation, route }: any) => {
 
       <ScrollView style={styles.scroll} showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 120 }}>
 
-        {/* Destination Card */}
+        {/* Waypoints Card */}
         <Card variant="gradient-border" gradientBorderColor={colors.primary} style={styles.card}>
           <View style={styles.sectionRow}>
             <View style={[styles.sectionIcon, { backgroundColor: colors.primary + '18' }]}>
               <Icon name="location" size={16} color={colors.primary} />
             </View>
-            <Text style={[styles.sectionTitle, { color: colors.text }]}>Trip Name</Text>
+            <Text style={[styles.sectionTitle, { color: colors.text }]}>Trip Route</Text>
           </View>
-          <TextInput
-            style={[styles.nameInput, { color: colors.text, borderBottomColor: colors.border }]}
-            value={destinationName}
-            onChangeText={setDestinationName}
-            placeholder="Name your destination..."
-            placeholderTextColor={colors.textSecondary}
-            selectionColor={colors.primary}
-          />
+          
+          {waypoints.map((wp, index) => (
+            <View key={index} style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 12, paddingBottom: 12, borderBottomWidth: index < waypoints.length - 1 ? 1 : 0, borderBottomColor: colors.border }}>
+              <View style={{ width: 24, height: 24, borderRadius: 12, backgroundColor: colors.primary, justifyContent: 'center', alignItems: 'center', marginRight: 12 }}>
+                 <Text style={{ color: '#FFF', fontSize: 12, fontWeight: '700' }}>{index + 1}</Text>
+              </View>
+              <TextInput
+                style={[styles.nameInput, { color: colors.text, flex: 1, borderBottomWidth: 0, paddingVertical: 0 }]}
+                value={wp.name}
+                onChangeText={(text) => {
+                  setWaypoints(prev => {
+                    const newArr = [...prev];
+                    newArr[index].name = text;
+                    return newArr;
+                  });
+                }}
+                placeholder={`Waypoint ${index + 1}`}
+                placeholderTextColor={colors.textSecondary}
+              />
+              <TouchableOpacity onPress={() => setWaypoints(prev => prev.filter((_, i) => i !== index))} style={{ padding: 4 }}>
+                <Icon name="close-circle-outline" size={20} color={colors.danger} />
+              </TouchableOpacity>
+            </View>
+          ))}
+
           <Button
-            title="Change Location"
+            title="Add Another Stop"
             variant="outline"
             size="small"
             onPress={() => navigation.navigate('Map')}
-            style={{ marginTop: 14 }}
-            icon={<Icon name="map-outline" size={14} color={colors.primary} />}
+            style={{ marginTop: 8 }}
+            icon={<Icon name="add-circle-outline" size={16} color={colors.primary} />}
           />
         </Card>
 

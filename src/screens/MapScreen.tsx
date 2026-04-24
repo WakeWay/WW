@@ -87,7 +87,7 @@ const osmMapHtml = `
                       const data = typeof event.data === 'string' ? JSON.parse(event.data) : event.data;
                       
                       if (data.type === 'setCenter') {
-                          const { latitude, longitude, autoCenter, destination, isViewOnly } = data;
+                          const { latitude, longitude, autoCenter, destination, waypointsArray, isViewOnly } = data;
                           if (isViewOnly) window.IS_VIEW_ONLY = true;
                           if (currentMarker) map.removeLayer(currentMarker);
                           
@@ -102,15 +102,50 @@ const osmMapHtml = `
                               icon: pulseIcon
                           }).addTo(map).bindPopup('Your Location');
                           
-                          if (destination) {
-                            const waypoints = [
+                          // Handle multiple waypoints for active trip routing
+                          if (waypointsArray && waypointsArray.length > 0) {
+                            const routePoints = [
+                              L.latLng(latitude, longitude),
+                              ...waypointsArray.map(wp => L.latLng(wp.latitude, wp.longitude))
+                            ];
+
+                            if (!routingControl) {
+                              routingControl = L.Routing.control({
+                                waypoints: routePoints,
+                                lineOptions: {
+                                  styles: [{ color: '#007AFF', weight: 6, opacity: 0.7 }]
+                                },
+                                createMarker: function(i, wp) {
+                                  if (i === 0) return null; // No marker for user's start location
+                                  const markerHtml = '<div style="background-color: #FF3333; color: white; width: 24px; height: 24px; border-radius: 12px; display: flex; justify-content: center; align-items: center; font-weight: bold; font-size: 12px; border: 2px solid white; box-shadow: 0 2px 4px rgba(0,0,0,0.3);">' + i + '</div>';
+                                  return L.marker(wp.latLng, {
+                                    icon: L.divIcon({
+                                      html: markerHtml,
+                                      className: 'custom-div-icon',
+                                      iconSize: [24, 24],
+                                      iconAnchor: [12, 12]
+                                    })
+                                  }).bindPopup('Stop ' + i);
+                                },
+                                addWaypoints: false,
+                                routeWhileDragging: false,
+                                draggableWaypoints: false,
+                                fitSelectedRoutes: autoCenter
+                              }).addTo(map);
+                            } else {
+                              routingControl.setWaypoints(routePoints);
+                            }
+                          } 
+                          // Fallback for single destination (e.g. previewing a location)
+                          else if (destination) {
+                            const routePoints = [
                               L.latLng(latitude, longitude),
                               L.latLng(destination.latitude, destination.longitude)
                             ];
 
                             if (!routingControl) {
                               routingControl = L.Routing.control({
-                                waypoints: waypoints,
+                                waypoints: routePoints,
                                 lineOptions: {
                                   styles: [{ color: '#007AFF', weight: 6, opacity: 0.7 }]
                                 },
@@ -121,7 +156,7 @@ const osmMapHtml = `
                                 fitSelectedRoutes: autoCenter
                               }).addTo(map);
                             } else {
-                              routingControl.setWaypoints(waypoints);
+                              routingControl.setWaypoints(routePoints);
                             }
 
                             if (selectedMarker) map.removeLayer(selectedMarker);
@@ -134,7 +169,7 @@ const osmMapHtml = `
                             }).addTo(map).bindPopup('Destination');
                           }
                           
-                          if (autoCenter && !destination) {
+                          if (autoCenter && !destination && (!waypointsArray || waypointsArray.length === 0)) {
                             map.setView([latitude, longitude], 16);
                           }
                       } else if (data.type === 'dropMarker') {
@@ -190,22 +225,65 @@ const osmMapHtml = `
   </html>
 `;
 
-const MapScreen = ({ navigation }: any) => {
+const MapScreen = ({ navigation, route }: any) => {
   const store = useTripStore();
   const isViewOnly = !!store.activeTrip;
   const { startTracking } = useLocationTracking();
   const { colors } = useTheme();
   const { showAlert } = useAlert();
   const styles = getStyles(colors);
-  const [selectedLocation, setSelectedLocation] = useState<any>(null);
+
+  // If opened from TripSetup via "Change Location", this holds the previously pinned coords
+  const initialDestination = route?.params?.initialDestination || null;
+
+  const [selectedLocation, setSelectedLocation] = useState<any>(initialDestination);
   const [isMapReady, setIsMapReady] = useState(false);
-  const [hasSetInitialLocation, setHasSetInitialLocation] = useState(false);
+  // Start as true when we have an initial destination so we don't auto-center over it
+  const [hasSetInitialLocation, setHasSetInitialLocation] = useState(!!initialDestination);
   const webViewRef = useRef<any>(null);
 
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<any[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   const [isKeyboardVisible, setKeyboardVisible] = useState(false);
+  const [isResolvingName, setIsResolvingName] = useState(false);
+
+  /**
+   * Reverse-geocode a coordinate and return the nearest town/city/suburb/village.
+   * Uses Nominatim with zoom=10 (city level) — no extra distance check needed
+   * since the API already constrains results to the local area.
+   */
+  const resolveNearbyPlaceName = async (
+    latitude: number,
+    longitude: number
+  ): Promise<string | null> => {
+    try {
+      const url =
+        `https://nominatim.openstreetmap.org/reverse?format=json` +
+        `&lat=${latitude}&lon=${longitude}&zoom=10&addressdetails=1`;
+      const res = await fetch(url, {
+        headers: { 'User-Agent': 'WakeWayApp/1.0', Accept: 'application/json' },
+      });
+      if (!res.ok) return null;
+      const data = await res.json();
+      if (data.error) return null;
+
+      // Walk the address hierarchy from most to least specific
+      const addr = data.address || {};
+      return (
+        addr.city ||
+        addr.town ||
+        addr.village ||
+        addr.suburb ||
+        addr.municipality ||
+        addr.county ||
+        addr.state_district ||
+        null
+      );
+    } catch {
+      return null;
+    }
+  };
 
   useEffect(() => {
     const keyboardDidShowListener = Keyboard.addListener(
@@ -260,11 +338,21 @@ const MapScreen = ({ navigation }: any) => {
     const lat = parseFloat(item.lat);
     const lon = parseFloat(item.lon);
 
+    // Extract a clean short name instead of using the long display_name
+    const addr = item.address || {};
+    const shortName =
+      item.name ||
+      addr.city ||
+      addr.town ||
+      addr.village ||
+      addr.suburb ||
+      item.display_name.split(',')[0].trim();
+
     setSearchQuery(item.display_name);
     setSearchResults([]);
     Keyboard.dismiss();
 
-    setSelectedLocation({ latitude: lat, longitude: lon });
+    setSelectedLocation({ latitude: lat, longitude: lon, resolvedName: shortName });
 
     const message = JSON.stringify({
       type: 'dropMarker',
@@ -319,7 +407,8 @@ const MapScreen = ({ navigation }: any) => {
       latitude: store.currentLocation.latitude,
       longitude: store.currentLocation.longitude,
       autoCenter: true,
-      destination: store.activeTrip?.destination,
+      waypointsArray: store.activeTrip?.waypoints?.map((w: any) => w.location),
+      destination: store.activeTrip?.waypoints?.[store.activeTrip.currentWaypointIndex]?.location,
       isViewOnly: !!store.activeTrip,
     });
     
@@ -330,7 +419,23 @@ const MapScreen = ({ navigation }: any) => {
     }
   };
 
-  // Live Location Updates
+  // Drop a marker at the previously-selected destination as soon as the map is ready
+  useEffect(() => {
+    if (isMapReady && initialDestination && !isViewOnly) {
+      const message = JSON.stringify({
+        type: 'dropMarker',
+        latitude: initialDestination.latitude,
+        longitude: initialDestination.longitude,
+      });
+      if (Platform.OS === 'web') {
+        webViewRef.current?.contentWindow?.postMessage(message, '*');
+      } else {
+        webViewRef.current?.postMessage(message);
+      }
+    }
+  }, [isMapReady]);
+
+  // Live Location Updates — only auto-center on user if no prior destination was restored
   useEffect(() => {
     if (isMapReady && store.currentLocation) {
       const message = JSON.stringify({
@@ -338,7 +443,8 @@ const MapScreen = ({ navigation }: any) => {
         latitude: store.currentLocation.latitude,
         longitude: store.currentLocation.longitude,
         autoCenter: !hasSetInitialLocation, // Only auto-center the first time
-        destination: store.activeTrip?.destination,
+        waypointsArray: store.activeTrip?.waypoints?.map((w: any) => w.location),
+        destination: store.activeTrip?.waypoints?.[store.activeTrip.currentWaypointIndex]?.location,
         isViewOnly: !!store.activeTrip,
       });
       
@@ -380,7 +486,7 @@ const MapScreen = ({ navigation }: any) => {
     }
   }, [store.currentLocation]);
 
-  const handleSelectLocation = () => {
+  const handleSelectLocation = async () => {
     if (!selectedLocation) {
       showAlert({
         title: 'No Location', 
@@ -389,10 +495,29 @@ const MapScreen = ({ navigation }: any) => {
       return;
     }
 
-    // Navigate back with selected location
+    // If we already have a resolved name from a search result, use it directly
+    if (selectedLocation.resolvedName) {
+      navigation.navigate('TripSetup', {
+        destination: selectedLocation,
+        destinationName: selectedLocation.resolvedName,
+      });
+      return;
+    }
+
+    // Otherwise attempt to reverse-geocode the pinned coordinate
+    setIsResolvingName(true);
+    const nearbyPlace = await resolveNearbyPlaceName(
+      selectedLocation.latitude,
+      selectedLocation.longitude
+    );
+    setIsResolvingName(false);
+
     navigation.navigate('TripSetup', {
       destination: selectedLocation,
-      destinationName: `${selectedLocation.latitude.toFixed(4)}, ${selectedLocation.longitude.toFixed(4)}`,
+      // Use resolved place name, or fall back to coordinates
+      destinationName: nearbyPlace
+        ? nearbyPlace
+        : `${selectedLocation.latitude.toFixed(4)}, ${selectedLocation.longitude.toFixed(4)}`,
     });
   };
 
@@ -501,15 +626,18 @@ const MapScreen = ({ navigation }: any) => {
           <>
             {!isKeyboardVisible && (
               <Text style={styles.instruction}>
-                {selectedLocation 
+                {isResolvingName
+                  ? '🔍 Resolving nearby place...'
+                  : selectedLocation
                   ? `✓ Selected: ${selectedLocation.latitude.toFixed(4)}, ${selectedLocation.longitude.toFixed(4)}`
                   : '📍 Tap map to select'}
               </Text>
             )}
             <Button
-              title={isKeyboardVisible ? "Search" : "Confirm Location"}
+              title={isKeyboardVisible ? "Search" : isResolvingName ? "Resolving..." : "Confirm Location"}
               onPress={isKeyboardVisible ? handleSearchSubmit : handleSelectLocation}
               style={styles.button}
+              loading={isResolvingName}
             />
           </>
         )}

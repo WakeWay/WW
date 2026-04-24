@@ -83,7 +83,11 @@ const SwipeCard: React.FC<{ trip: any; onDelete: () => void; colors: any; index:
         >
           <View style={styles.cardTop}>
             <View style={{ flex: 1, marginRight: 10 }}>
-              <Text style={[styles.destName, { color: colors.text }]} numberOfLines={1}>{trip.destinationName || 'Trip'}</Text>
+              <Text style={[styles.destName, { color: colors.text }]} numberOfLines={1}>
+                {trip.waypoints && trip.waypoints.length > 0 
+                  ? trip.waypoints.map((w: any) => w.name).join(' ➔ ') 
+                  : 'Trip'}
+              </Text>
               <Text style={[styles.dateText, { color: colors.textSecondary }]}>{formatDate(trip.endTime)}</Text>
             </View>
             {hasAlarm && <Badge text="🔔 Alarm" variant="success" size="sm" />}
@@ -91,7 +95,7 @@ const SwipeCard: React.FC<{ trip: any; onDelete: () => void; colors: any; index:
           <View style={styles.detailRow}>
             {[
               { icon: 'time-outline', text: formatDur(duration) },
-              { icon: 'scan-circle-outline', text: `${trip.radiusMeters}m` },
+              { icon: 'scan-circle-outline', text: `${trip.waypoints?.[0]?.radiusMeters || 500}m` },
               { icon: hasAlarm ? 'notifications' : 'notifications-off-outline', text: hasAlarm ? 'Woken up' : 'No alarm', color: hasAlarm ? colors.success : (colors.textMuted || colors.textSecondary) },
             ].map((d, i) => (
               <React.Fragment key={i}>

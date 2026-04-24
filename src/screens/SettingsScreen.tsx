@@ -29,8 +29,8 @@ import { GRADIENTS, SHADOWS, RADIUS as R } from '@/constants/theme';
 const ToggleRow: React.FC<{ label: string; desc: string; value: boolean; onChange: (v: boolean) => void; icon: string; iconColor: string; disabled?: boolean }> = ({ label, desc, value, onChange, icon, iconColor, disabled }) => {
   const { colors } = useTheme();
   return (
-    <View style={[rowStyles.row, { borderBottomColor: colors.border, opacity: disabled ? 0.5 : 1 }]}>
-      <View style={[rowStyles.iconWrap, { backgroundColor: iconColor + '18' }]}>
+    <View style={[rowStyles.row, { opacity: disabled ? 0.5 : 1 }]}>
+      <View style={[rowStyles.iconWrap, { backgroundColor: iconColor + '15' }]}>
         <Icon name={icon} size={16} color={iconColor} />
       </View>
       <View style={{ flex: 1 }}>
@@ -50,7 +50,7 @@ const ToggleRow: React.FC<{ label: string; desc: string; value: boolean; onChang
 };
 
 const rowStyles = StyleSheet.create({
-  row: { flexDirection: 'row', alignItems: 'center', paddingVertical: 14, borderBottomWidth: 1, gap: 12 },
+  row: { flexDirection: 'row', alignItems: 'center', paddingVertical: 13, paddingHorizontal: 16, gap: 12 },
   iconWrap: { width: 34, height: 34, borderRadius: 10, justifyContent: 'center', alignItems: 'center' },
   label: { fontSize: 14, fontWeight: '600' },
   desc: { fontSize: 12, marginTop: 1 },
@@ -63,8 +63,8 @@ const PermissionRow: React.FC<{ icon: string; label: string; status: string; onR
   const { showAlert } = useAlert();
   const granted = status === 'granted';
   return (
-    <View style={[rowStyles.row, { borderBottomColor: colors.border }]}>
-      <View style={[rowStyles.iconWrap, { backgroundColor: (granted ? colors.success : colors.danger) + '18' }]}>
+    <View style={rowStyles.row}>
+      <View style={[rowStyles.iconWrap, { backgroundColor: (granted ? colors.success : colors.danger) + '15' }]}>
         <Icon name={icon} size={16} color={granted ? colors.success : colors.danger} />
       </View>
       <View style={{ flex: 1 }}>
@@ -86,25 +86,56 @@ const PermissionRow: React.FC<{ icon: string; label: string; status: string; onR
   );
 };
 
+// ─── Inset Row Divider ────────────────────────────────────────────────────────
+
+const RowDivider: React.FC<{ colors: any }> = ({ colors }) => (
+  <View style={{ height: 1, backgroundColor: colors.border + '70', marginHorizontal: 16, marginLeft: 62 }} />
+);
+
 // ─── Section Card ─────────────────────────────────────────────────────────────
 
 const SectionCard: React.FC<{ title: string; icon: string; accentColor: string; children: React.ReactNode; colors: any }> = ({ title, icon, accentColor, children, colors }) => (
-  <View style={[secStyles.card, { backgroundColor: colors.surface, borderLeftColor: accentColor, ...SHADOWS.subtle }]}>
-    <View style={secStyles.heading}>
-      <View style={[secStyles.headIcon, { backgroundColor: accentColor + '18' }]}>
-        <Icon name={icon} size={16} color={accentColor} />
+  <View style={[secStyles.card, { backgroundColor: colors.surface, ...SHADOWS.subtle }]}>
+    {/* Compact label header row */}
+    <View style={[secStyles.heading, { borderBottomColor: colors.border + '60' }]}>
+      <View style={[secStyles.headIconWrap, { backgroundColor: accentColor + '1A' }]}>
+        <Icon name={icon} size={13} color={accentColor} />
       </View>
-      <Text style={[secStyles.headTitle, { color: colors.text }]}>{title}</Text>
+      <Text style={[secStyles.headTitle, { color: accentColor }]}>{title.toUpperCase()}</Text>
     </View>
     {children}
   </View>
 );
 
 const secStyles = StyleSheet.create({
-  card: { marginHorizontal: 16, marginBottom: 14, borderRadius: R.lg, padding: 18, borderLeftWidth: 3, paddingLeft: 16 },
-  heading: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 8, paddingBottom: 10, borderBottomWidth: 1 },
-  headIcon: { width: 32, height: 32, borderRadius: 10, justifyContent: 'center', alignItems: 'center' },
-  headTitle: { fontSize: 15, fontWeight: '700', letterSpacing: 0.2 },
+  card: {
+    marginHorizontal: 16,
+    marginBottom: 12,
+    borderRadius: R.lg,
+    overflow: 'hidden',
+    paddingBottom: 6,
+  },
+  heading: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 7,
+    paddingHorizontal: 16,
+    paddingTop: 13,
+    paddingBottom: 10,
+    borderBottomWidth: 1,
+  },
+  headIconWrap: {
+    width: 24,
+    height: 24,
+    borderRadius: 7,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  headTitle: {
+    fontSize: 10.5,
+    fontWeight: '800',
+    letterSpacing: 1.0,
+  },
 });
 
 // ─── Main ─────────────────────────────────────────────────────────────────────
@@ -204,29 +235,31 @@ const SettingsScreen = () => {
         {/* ── Alarm Preferences ──────────────────── */}
         <SectionCard title="Alarm" icon="alarm-outline" accentColor={colors.danger} colors={colors}>
           <ToggleRow label="Sound" desc="Play alarm sound on trigger" value={store.settings.soundEnabled} onChange={v => store.updateSettings({ soundEnabled: v })} icon="volume-high-outline" iconColor={colors.danger} />
+          <RowDivider colors={colors} />
           <ToggleRow label="Vibration" desc="Vibrate when alarm triggers" value={store.settings.vibrationEnabled} onChange={v => store.updateSettings({ vibrationEnabled: v })} icon="phone-portrait-outline" iconColor={colors.warning} />
+          <RowDivider colors={colors} />
           <ToggleRow label="Snooze" desc="Allow snoozing the alarm" value={store.settings.snoozeEnabled} onChange={v => store.updateSettings({ snoozeEnabled: v })} icon="timer-outline" iconColor={colors.primary} />
-          <View style={[rowStyles.row, { borderBottomWidth: 0, flexDirection: 'column', alignItems: 'flex-start', gap: 10 }]}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-              <View style={[rowStyles.iconWrap, { backgroundColor: colors.accent + '18' }]}>
-                <Icon name="musical-notes-outline" size={16} color={colors.accent} />
-              </View>
-              <View>
-                <Text style={[rowStyles.label, { color: colors.text }]}>Custom Sound</Text>
-                <Text style={[rowStyles.desc, { color: colors.textSecondary }]}>{store.settings.customAlarmSoundName || 'Default'}</Text>
-              </View>
+          <RowDivider colors={colors} />
+          <View style={rowStyles.row}>
+            <View style={[rowStyles.iconWrap, { backgroundColor: colors.accent + '15' }]}>
+              <Icon name="musical-notes-outline" size={16} color={colors.accent} />
             </View>
-            <View style={{ flexDirection: 'row', gap: 8 }}>
-              <Button title="Choose File" size="small" onPress={handlePickSound} />
+            <View style={{ flex: 1 }}>
+              <Text style={[rowStyles.label, { color: colors.text }]}>Custom Sound</Text>
+              <Text style={[rowStyles.desc, { color: colors.textSecondary }]}>{store.settings.customAlarmSoundName || 'Default'}</Text>
+            </View>
+            <View style={{ flexDirection: 'row', gap: 6 }}>
+              <Button title="Choose" size="small" onPress={handlePickSound} />
               {store.settings.customAlarmSoundUri && <Button title="Reset" size="small" variant="outline" onPress={clearSound} />}
             </View>
           </View>
+
         </SectionCard>
 
         {/* ── Default Radius ──────────────────────── */}
         <SectionCard title="Default Radius" icon="scan-circle-outline" accentColor={colors.primary} colors={colors}>
-          <Text style={[styles.sectionDesc, { color: colors.textSecondary }]}>Alert distance for new trips</Text>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: 10 }} contentContainerStyle={{ gap: 8, paddingRight: 4 }}>
+          <Text style={[styles.sectionDesc, { color: colors.textSecondary, paddingHorizontal: 16, paddingTop: 10 }]}>Alert distance for new trips</Text>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: 10, marginBottom: 4 }} contentContainerStyle={{ gap: 8, paddingHorizontal: 16, paddingRight: 20 }}>
             {RADIUS_OPTIONS.map((r: number) => {
               const active = store.settings.defaultRadius === r;
               return (
@@ -244,7 +277,7 @@ const SettingsScreen = () => {
 
         {/* ── Theme ──────────────────────────────── */}
         <SectionCard title="Appearance" icon="color-palette-outline" accentColor={colors.accent} colors={colors}>
-          <View style={styles.themeGrid}>
+          <View style={[styles.themeGrid, { paddingHorizontal: 16, paddingTop: 12, paddingBottom: 6 }]}>
             {THEME_OPTIONS.map(t => {
               const active = themeMode === t.key;
               return (
@@ -264,16 +297,19 @@ const SettingsScreen = () => {
           </View>
         </SectionCard>
 
+
         {/* ── Permissions ─────────────────────────── */}
         <SectionCard title="Permissions" icon="shield-checkmark-outline" accentColor={colors.success} colors={colors}>
           <PermissionRow icon="location-outline" label="Foreground Location" status={permissions.location} onRequest={async () => { const g = await requestForegroundPermission(); showAlert({ title: 'Permission', message: g ? 'Granted!' : 'Denied.' }); }} />
+          <RowDivider colors={colors} />
           <PermissionRow icon="location-outline" label="Background Location" status={permissions.locationBackground} onRequest={async () => { const g = await requestBackgroundPermission(); showAlert({ title: 'Permission', message: g ? 'Granted!' : 'Denied.' }); }} />
+          <RowDivider colors={colors} />
           <PermissionRow icon="notifications-outline" label="Notifications" status={permissions.notifications} onRequest={() => {}} />
         </SectionCard>
 
         {/* ── Account ─────────────────────────────── */}
         <SectionCard title="Account" icon="person-outline" accentColor={colors.primary} colors={colors}>
-          <TouchableOpacity style={[rowStyles.row, { borderBottomColor: colors.border }]} onPress={handleLogout}>
+          <TouchableOpacity style={rowStyles.row} onPress={handleLogout}>
             <View style={[rowStyles.iconWrap, { backgroundColor: colors.warning + '18' }]}>
               <Icon name="log-out-outline" size={16} color={colors.warning} />
             </View>
@@ -283,7 +319,8 @@ const SettingsScreen = () => {
             </View>
             <Icon name="chevron-forward" size={16} color={colors.textSecondary} />
           </TouchableOpacity>
-          <TouchableOpacity style={[rowStyles.row, { borderBottomWidth: 0 }]} onPress={() => setShowTermsModal(true)}>
+          <RowDivider colors={colors} />
+          <TouchableOpacity style={rowStyles.row} onPress={() => setShowTermsModal(true)}>
             <View style={[rowStyles.iconWrap, { backgroundColor: colors.primary + '18' }]}>
               <Icon name="document-text-outline" size={16} color={colors.primary} />
             </View>
@@ -304,14 +341,17 @@ const SettingsScreen = () => {
           <Button title="Deactivate Account" variant="danger" onPress={handleDeactivateRequest} style={{ marginTop: 12 }} />
         </View>
 
-        {/* ── About ───────────────────────────────── */}
+        {/* ── About ─────────────────────────────────── */}
         <SectionCard title="About" icon="information-circle-outline" accentColor={colors.textSecondary} colors={colors}>
-          {[{ label: 'Version', value: '1.0.0' }, { label: 'Developer', value: 'WakeWay Team' }].map((item, i, arr) => (
-            <View key={item.label} style={[rowStyles.row, { borderBottomColor: colors.border, borderBottomWidth: i < arr.length - 1 ? 1 : 0 }]}>
-              <Text style={[rowStyles.label, { color: colors.textSecondary, flex: 1 }]}>{item.label}</Text>
-              <Text style={[rowStyles.desc, { color: colors.text, fontWeight: '600' }]}>{item.value}</Text>
-            </View>
-          ))}
+          <View style={rowStyles.row}>
+            <Text style={[rowStyles.label, { color: colors.textSecondary, flex: 1 }]}>Version</Text>
+            <Text style={[rowStyles.desc, { color: colors.text, fontWeight: '600' }]}>1.0.0</Text>
+          </View>
+          <RowDivider colors={colors} />
+          <View style={rowStyles.row}>
+            <Text style={[rowStyles.label, { color: colors.textSecondary, flex: 1 }]}>Developer</Text>
+            <Text style={[rowStyles.desc, { color: colors.text, fontWeight: '600' }]}>WakeWay Team</Text>
+          </View>
         </SectionCard>
 
         <Text style={[styles.footer, { color: colors.textMuted || colors.textSecondary }]}>WakeWay — Never miss your stop ✈️</Text>
@@ -363,7 +403,7 @@ const styles = StyleSheet.create({
   sectionDesc: { fontSize: 12, fontWeight: '500', marginTop: 4 },
   radiusChip: { paddingVertical: 8, paddingHorizontal: 16, borderRadius: R.pill, borderWidth: 1.5 },
   radiusChipText: { fontSize: 13, fontWeight: '700' },
-  themeGrid: { flexDirection: 'row', gap: 10, marginTop: 10 },
+  themeGrid: { flexDirection: 'row', gap: 10 },
   themeCard: { flex: 1, borderRadius: R.lg, padding: 14, alignItems: 'center', gap: 8 },
   themeIconWrap: { width: 44, height: 44, borderRadius: 22, justifyContent: 'center', alignItems: 'center' },
   themeLabel: { fontSize: 12, fontWeight: '700' },

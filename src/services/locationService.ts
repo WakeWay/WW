@@ -61,9 +61,12 @@ TaskManager.defineTask(LOCATION_TASK_NAME, async ({ data, error }: any) => {
     store.updateCurrentLocation(currentLocation);
 
     // Check if within alarm radius
-    if (isWithinRadius(currentLocation, activeTrip.destination, activeTrip.radiusMeters)) {
-      store.triggerAlarm();
-      notificationService.triggerFullAlarm(activeTrip);
+    const currentWaypoint = activeTrip.waypoints[activeTrip.currentWaypointIndex];
+    if (currentWaypoint && currentWaypoint.location && currentWaypoint.location.latitude !== undefined) {
+      if (isWithinRadius(currentLocation, currentWaypoint.location, currentWaypoint.radiusMeters)) {
+        store.triggerAlarm();
+        notificationService.triggerFullAlarm(activeTrip);
+      }
     }
   } catch (err) {
     console.error('[BG-LOCATION] Error processing background location:', err);
@@ -228,6 +231,60 @@ class LocationService {
     } catch (error) {
       console.error('Failed to stop background location task:', error);
       throw error;
+    }
+  }
+
+  /**
+   * Update background task parameters adaptively based on distance
+   */
+  async updateAdaptivePolling(distanceMeters: number | undefined | null): Promise<void> {
+    if (Platform.OS === 'web') return;
+    
+    try {
+      const isTaskDefined = await TaskManager.isTaskRegisteredAsync(LOCATION_TASK_NAME);
+      if (!isTaskDefined) return;
+
+      let timeInterval = LOCATION_UPDATE_INTERVAL_MS; // default 15s
+      let distanceInterval = 10; // default 10m
+      let accuracy = Location.Accuracy.High;
+      
+      if (distanceMeters !== null && distanceMeters !== undefined) {
+        if (distanceMeters > 20000) {
+          // > 20km away: 3 minutes, 500m change
+          timeInterval = 180000;
+          distanceInterval = 500;
+          accuracy = Location.Accuracy.Balanced;
+        } else if (distanceMeters > 5000) {
+          // > 5km away: 1 minute, 100m change
+          timeInterval = 60000;
+          distanceInterval = 100;
+          accuracy = Location.Accuracy.Balanced;
+        } else if (distanceMeters > 1000) {
+          // > 1km away: 15 seconds, 50m change
+          timeInterval = 15000;
+          distanceInterval = 50;
+          accuracy = Location.Accuracy.High;
+        } else {
+          // < 1km away: 5 seconds, 5m change (high precision mode)
+          timeInterval = 5000;
+          distanceInterval = 5;
+          accuracy = Location.Accuracy.Highest;
+        }
+      }
+
+      await Location.startLocationUpdatesAsync(LOCATION_TASK_NAME, {
+        accuracy,
+        timeInterval,
+        distanceInterval,
+        pausesUpdatesAutomatically: true,
+        foregroundService: {
+          notificationTitle: 'WakeWay is tracking your location',
+          notificationBody: distanceMeters && distanceMeters < 1000 ? 'Approaching destination' : 'Adaptive battery saving active',
+          notificationColor: '#007AFF',
+        },
+      });
+    } catch (error) {
+      console.error('Failed to update adaptive polling:', error);
     }
   }
 

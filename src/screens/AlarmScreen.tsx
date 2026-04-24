@@ -131,7 +131,7 @@ const AlarmScreen = ({ navigation }: any) => {
 
           {/* Trip name */}
           <Text style={styles.tripLabel}>DESTINATION REACHED</Text>
-          <Text style={styles.tripName}>{activeTrip.destinationName}</Text>
+          <Text style={styles.tripName}>{activeTrip.waypoints[activeTrip.currentWaypointIndex]?.name || 'Destination'}</Text>
           <Text style={styles.subtitle}>Time to wake up! 🎉</Text>
 
           {/* Distance */}

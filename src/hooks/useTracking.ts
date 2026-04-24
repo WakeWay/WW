@@ -34,16 +34,28 @@ export const useLocationTracking = (): {
         storeState.updateCurrentLocation(location);
         storeState.updateDistanceToDestination();
 
+        const trip = storeState.activeTrip;
+
+        // Update persistent trip-status notification if trip is active
+        if (trip && !trip.alarmTriggered) {
+          const currentWaypoint = trip.waypoints[trip.currentWaypointIndex];
+          notificationService.showTripNotification({
+            destinationName: trip.waypoints.length > 1 ? `Stop ${trip.currentWaypointIndex + 1}: ${currentWaypoint?.name || 'Destination'}` : currentWaypoint?.name || 'Destination',
+            distanceToDestination: storeState.activeTrip?.distanceToDestination ?? null,
+            radiusMeters: currentWaypoint?.radiusMeters || 500,
+          });
+        }
+
         // Check for alarm trigger
-        if (storeState.activeTrip && !storeState.activeTrip.alarmTriggered && !storeState.activeTrip.alarmDismissed) {
-          if (storeState.activeTrip.snoozeUntil && Date.now() < storeState.activeTrip.snoozeUntil) {
+        if (trip && !trip.alarmTriggered && !trip.alarmDismissed) {
+          if (trip.snoozeUntil && Date.now() < trip.snoozeUntil) {
             return; // Still snoozing
           }
           const { isWithinRadius } = require('../utils/distanceCalculator');
-          if (isWithinRadius(location, storeState.activeTrip.destination, storeState.activeTrip.radiusMeters)) {
+          const currentWaypoint = trip.waypoints[trip.currentWaypointIndex];
+          if (currentWaypoint && currentWaypoint.location && currentWaypoint.location.latitude !== undefined && isWithinRadius(location, currentWaypoint.location, currentWaypoint.radiusMeters)) {
             storeState.triggerAlarm();
-            notificationService.triggerFullAlarm(storeState.activeTrip);
-
+            notificationService.triggerFullAlarm(trip);
           }
         }
       });
@@ -64,6 +76,8 @@ export const useLocationTracking = (): {
       setError(null);
       locationService.stopLocationWatching();
       await locationService.stopBackgroundLocationTask();
+      // Clear the persistent trip notification when tracking stops
+      await notificationService.clearTripNotification();
       store.setIsTrackingActive(false);
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to stop tracking';
@@ -139,20 +153,22 @@ export const useLocationPermissions = (): {
 export const useActiveTrip = (): {
   activeTrip: Trip | null;
   distanceToDestination: number | null;
-  createTrip: (destination: any, radius: number, name: string) => void;
+  createTrip: (waypoints: any[]) => void;
   endTrip: () => Promise<void>;
   currentLocation: LocationData | null;
 } => {
   const store = useTripStore();
 
   const createTrip = useCallback(
-    (destination: any, radius: number, name: string) => {
-      store.createTrip(destination, radius, name);
+    (waypoints: any[]) => {
+      store.createTrip(waypoints);
     },
     [store]
   );
 
   const endTrip = useCallback(async () => {
+    // Clear the persistent notification before ending the trip
+    await notificationService.clearTripNotification();
     await store.endActiveTrip();
   }, [store]);
 

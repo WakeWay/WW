@@ -109,14 +109,31 @@ export const isValidCoordinate = (coord: LocationCoordinate): boolean => {
  * (e.g., if traveled 10km in 10 seconds = 3600 km/h, it's a GPS error)
  */
 export const isLocationJump = (
-  previousLocation: LocationCoordinate,
-  currentLocation: LocationCoordinate,
+  previousLocation: LocationCoordinate & { accuracy?: number | null },
+  currentLocation: LocationCoordinate & { accuracy?: number | null },
   timeDeltaSeconds: number,
   maxSpeedMps: number = 100 // ~360 km/h, max for trains/planes
 ): boolean => {
+  // Discard locations with terrible accuracy (e.g., > 1000m)
+  if (currentLocation.accuracy && currentLocation.accuracy > 1000) {
+    return true; // Treat as a jump / invalid
+  }
+
   const distance = calculateDistance(previousLocation, currentLocation);
   const speedMps = distance / timeDeltaSeconds;
-  return speedMps > maxSpeedMps;
+  
+  // If speed is incredibly high, it's a jump
+  if (speedMps > maxSpeedMps) {
+    return true;
+  }
+  
+  // Advanced check: if speed is suspiciously high (> 30 m/s or 108 km/h) 
+  // AND accuracy is poor (> 100m), it's likely a GPS multipath jump
+  if (speedMps > 30 && currentLocation.accuracy && currentLocation.accuracy > 100) {
+    return true;
+  }
+
+  return false;
 };
 
 /**

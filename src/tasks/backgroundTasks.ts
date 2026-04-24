@@ -56,16 +56,26 @@ export const handleBackgroundLocationUpdate = async (locations: LocationObject[]
       timestamp: latestLocation.timestamp,
     });
 
-    // Calculate distance to destination
-    const distance = calculateDistance(currentLocation, activeTrip.destination);
+    const currentWaypoint = activeTrip.waypoints[activeTrip.currentWaypointIndex];
+    if (!currentWaypoint) return;
     
+    if (!currentWaypoint.location || typeof currentWaypoint.location.latitude === 'undefined') {
+      console.warn('[BG-LOCATION] currentWaypoint.location is undefined or malformed', currentWaypoint);
+      return;
+    }
 
-
+    // Calculate distance to current waypoint
+    const distance = calculateDistance(currentLocation, currentWaypoint.location);
+    
     // Update trip with current distance
     store.updateActiveTrip({ distanceToDestination: distance });
 
-    // Check if within alarm radius
-    if (isWithinRadius(currentLocation, activeTrip.destination, activeTrip.radiusMeters)) {
+    // Adapt background polling frequency based on new distance
+    const { locationService } = require('@services/locationService');
+    locationService.updateAdaptivePolling(distance);
+
+    // Check if within alarm radius of current waypoint
+    if (isWithinRadius(currentLocation, currentWaypoint.location, currentWaypoint.radiusMeters)) {
       await triggerAlarmFromBackground(activeTrip);
     }
   } catch (error) {

@@ -17,12 +17,18 @@ export interface LocationData extends LocationCoordinate {
   timestamp: number;
 }
 
-// Trip Types
+export interface Waypoint {
+  id: string;
+  location: LocationCoordinate;
+  name: string;
+  radiusMeters: number;
+  triggered?: boolean;
+}
+
 export interface Trip {
   id: string;
-  destination: LocationCoordinate;
-  destinationName: string;
-  radiusMeters: number;
+  waypoints: Waypoint[];
+  currentWaypointIndex: number;
   startTime: number;
   endTime?: number;
   isActive: boolean;
@@ -36,9 +42,7 @@ export interface Trip {
 
 export interface TripHistory {
   tripId: string;
-  destination: LocationCoordinate;
-  destinationName: string;
-  radiusMeters: number;
+  waypoints: Waypoint[];
   startTime: number;
   endTime: number;
   alarmTriggered: boolean;

@@ -10,6 +10,7 @@ export const MAX_SPEED_MPS = 100; // Max ~360 km/h for trains/planes
 
 // Alarm/Notification constants
 export const ALARM_NOTIFICATION_CHANNEL_ID = 'alarm_channel';
+export const TRACKING_NOTIFICATION_CHANNEL_ID = 'tracking_channel';
 export const ALARM_SOUND_URI = 'notification_alarm.mp3'; // Should be in assets
 export const ALARM_VIBRATION_PATTERN = [0, 250, 250, 250]; // Vibration pattern
 

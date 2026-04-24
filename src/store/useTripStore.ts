@@ -50,7 +50,7 @@ const generateUUID = (): string => {
 
 interface TripStoreActions {
   // Trip management
-  createTrip: (destination: Trip['destination'], radiusMeters: number, destinationName: string) => void;
+  createTrip: (waypoints: Omit<Waypoint, 'id'>[]) => void;
   updateActiveTrip: (updates: Partial<Trip>) => void;
   endActiveTrip: () => void;
   startTracking: () => void;
@@ -109,12 +109,12 @@ const initialState: TripStore = {
 export const useTripStore = create<TripStoreType>((set: any, get: any) => ({
   ...initialState,
 
-  createTrip: (destination: LocationCoordinate, radiusMeters: number, destinationName: string) => {
+  createTrip: (waypointsData: Omit<Waypoint, 'id'>[]) => {
+    const waypoints = waypointsData.map(wp => ({ ...wp, id: generateUUID(), triggered: false }));
     const newTrip: Trip = {
       id: generateUUID(),
-      destination,
-      destinationName,
-      radiusMeters,
+      waypoints,
+      currentWaypointIndex: 0,
       startTime: Date.now(),
       isActive: true,
       alarmTriggered: false,
@@ -171,9 +171,7 @@ export const useTripStore = create<TripStoreType>((set: any, get: any) => ({
       // Add to history
       const historyEntry: TripHistory = {
         tripId: endedTrip.id,
-        destination: endedTrip.destination,
-        destinationName: endedTrip.destinationName,
-        radiusMeters: endedTrip.radiusMeters,
+        waypoints: endedTrip.waypoints,
         startTime: endedTrip.startTime,
         endTime: endedTrip.endTime!,
         alarmTriggered: Boolean(endedTrip.alarmTriggerTime || endedTrip.alarmDismissed || endedTrip.alarmTriggered),
@@ -200,8 +198,7 @@ export const useTripStore = create<TripStoreType>((set: any, get: any) => ({
           },
           body: JSON.stringify({
             tripId: historyEntry.tripId,
-            destinationName: historyEntry.destinationName,
-            radiusMeters: historyEntry.radiusMeters,
+            waypoints: historyEntry.waypoints,
             startTime: historyEntry.startTime,
             endTime: historyEntry.endTime,
             alarmTriggered: historyEntry.alarmTriggered
@@ -240,10 +237,11 @@ export const useTripStore = create<TripStoreType>((set: any, get: any) => ({
 
   updateDistanceToDestination: () => {
     const state = get();
-    if (!state.activeTrip || !state.currentLocation) return;
+    if (!state.activeTrip || !state.currentLocation || state.activeTrip.currentWaypointIndex >= state.activeTrip.waypoints.length) return;
 
+    const currentWaypoint = state.activeTrip.waypoints[state.activeTrip.currentWaypointIndex];
     const { calculateDistance } = require('../utils/distanceCalculator') as any;
-    const distance = calculateDistance(state.currentLocation, state.activeTrip.destination);
+    const distance = calculateDistance(state.currentLocation, currentWaypoint.location);
 
     get().updateActiveTrip({ distanceToDestination: distance });
   },
@@ -271,11 +269,22 @@ export const useTripStore = create<TripStoreType>((set: any, get: any) => ({
         return state;
       }
 
+      const waypoints = [...state.activeTrip.waypoints];
+      waypoints[state.activeTrip.currentWaypointIndex] = {
+        ...waypoints[state.activeTrip.currentWaypointIndex],
+        triggered: true
+      };
+      
+      const nextIndex = state.activeTrip.currentWaypointIndex + 1;
+      const isFinished = nextIndex >= waypoints.length;
+
       return {
         activeTrip: {
           ...state.activeTrip,
+          waypoints,
+          currentWaypointIndex: isFinished ? state.activeTrip.currentWaypointIndex : nextIndex,
           alarmTriggered: false,
-          alarmDismissed: true,
+          alarmDismissed: isFinished ? true : false,
         },
       };
     });
@@ -397,11 +406,9 @@ export const useTripStore = create<TripStoreType>((set: any, get: any) => ({
           });
           const data = await res.json();
           if (res.ok && data.trips && Array.isArray(data.trips)) {
-             tripHistory = data.trips.map((row: any) => ({
+           tripHistory = data.trips.map((row: any) => ({
                tripId: row.trip_id,
-               destination: { latitude: 0, longitude: 0 },
-               destinationName: row.destination_name,
-               radiusMeters: row.radius_meters,
+               waypoints: row.waypoints || [], // Assuming backend returns waypoints
                startTime: new Date(row.start_time).getTime(),
                endTime: new Date(row.end_time).getTime(),
                alarmTriggered: row.alarm_triggered
@@ -414,10 +421,15 @@ export const useTripStore = create<TripStoreType>((set: any, get: any) => ({
         }
       }
 
+      // Clear old format trips
+      if (activeTrip && !activeTrip.waypoints) {
+        saveActiveTrip(null).catch(() => {});
+      }
+
       set({
-        activeTrip,
-        trips,
-        tripHistory,
+        activeTrip: (activeTrip && activeTrip.waypoints) ? activeTrip : null,
+        trips: (trips || []).filter(t => t.waypoints),
+        tripHistory: tripHistory.filter(t => t.waypoints),
         settings: settings || DEFAULT_SETTINGS,
       });
     } catch (error) {
