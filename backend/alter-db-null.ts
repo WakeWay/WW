@@ -9,18 +9,15 @@ const pool = new Pool({
   ssl: { rejectUnauthorized: false }
 });
 
-async function check() {
+async function alter() {
   try {
-    const res = await pool.query(`
-      SELECT column_name, is_nullable 
-      FROM information_schema.columns 
-      WHERE table_name = 'trip_history';
-    `);
-    console.log(res.rows);
+    console.log("Altering radius_meters to be nullable...");
+    await pool.query(`ALTER TABLE public.trip_history ALTER COLUMN radius_meters DROP NOT NULL;`);
+    console.log("✅ Altered successfully!");
     process.exit(0);
   } catch (e) {
     console.error(e);
     process.exit(1);
   }
 }
-check();
+alter();
