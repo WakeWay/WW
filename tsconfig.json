@@ -54,7 +54,8 @@
     },
     "resolveJsonModule": true,
     "types": [
-      "jest"
+      "jest",
+      "node"
     ],
     "allowSyntheticDefaultImports": true
   },

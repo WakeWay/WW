@@ -1,0 +1,80 @@
+
+> wakeway@1.0.0 type-check
+> tsc --noEmit
+
+src/components/FloatingLabelInput.tsx(91,11): error TS2322: Type '{ children: string; style: ({ position: "absolute"; paddingHorizontal: number; fontWeight: "600"; zIndex: number; } | { top: AnimatedInterpolation<string | number>; fontSize: AnimatedInterpolation<...>; color: string | AnimatedInterpolation<...>; backgroundColor: string; left: number; })[]; pointerEvents: string; }' is not assignable to type 'IntrinsicAttributes & AnimatedProps<TextProps & RefAttributes<Text>>'.
+  Property 'pointerEvents' does not exist on type 'IntrinsicAttributes & AnimatedProps<TextProps & RefAttributes<Text>>'.
+src/components/UIComponents.tsx(129,27): error TS2769: No overload matches this call.
+  Overload 1 of 2, '(props: LinearGradientProps): LinearGradient', gave the following error.
+    Type 'readonly ["#00C6F8", "#0072B5"] | readonly ["#FCD34D", "#F59E0B"] | readonly ["#FF6B6B", "#EF4444"] | readonly ["#34D399", "#10B981"] | readonly ["transparent", "transparent"]' is not assignable to type 'string[]'.
+      The type 'readonly ["#00C6F8", "#0072B5"]' is 'readonly' and cannot be assigned to the mutable type 'string[]'.
+  Overload 2 of 2, '(props: LinearGradientProps, context: any): LinearGradient', gave the following error.
+    Type 'readonly ["#00C6F8", "#0072B5"] | readonly ["#FCD34D", "#F59E0B"] | readonly ["#FF6B6B", "#EF4444"] | readonly ["#34D399", "#10B981"] | readonly ["transparent", "transparent"]' is not assignable to type 'string[]'.
+src/providers/AlertProvider.tsx(62,63): error TS2339: Property 'surfaceVariant' does not exist on type '{ primary: string; primaryDark: string; primaryLight: string; accent: string; accentLight: string; danger: string; dangerDark: string; dangerLight: string; success: string; successDark: string; ... 13 more ...; overlayLight: string; }'.
+src/screens/auth/LoginScreen.tsx(57,23): error TS2769: No overload matches this call.
+  Overload 1 of 2, '(props: LinearGradientProps): LinearGradient', gave the following error.
+    Type 'readonly ["#0A2A3F", "#0083B0", "#00C6F8"] | readonly ["#050C18", "#0A2A3F", "#0072B5"]' is not assignable to type 'string[]'.
+      The type 'readonly ["#0A2A3F", "#0083B0", "#00C6F8"]' is 'readonly' and cannot be assigned to the mutable type 'string[]'.
+  Overload 2 of 2, '(props: LinearGradientProps, context: any): LinearGradient', gave the following error.
+    Type 'readonly ["#0A2A3F", "#0083B0", "#00C6F8"] | readonly ["#050C18", "#0A2A3F", "#0072B5"]' is not assignable to type 'string[]'.
+      The type 'readonly ["#0A2A3F", "#0083B0", "#00C6F8"]' is 'readonly' and cannot be assigned to the mutable type 'string[]'.
+src/screens/auth/LoginScreen.tsx(119,33): error TS2769: No overload matches this call.
+  Overload 1 of 2, '(props: LinearGradientProps): LinearGradient', gave the following error.
+    The type 'readonly ["#00C6F8", "#0072B5"]' is 'readonly' and cannot be assigned to the mutable type 'string[]'.
+  Overload 2 of 2, '(props: LinearGradientProps, context: any): LinearGradient', gave the following error.
+    The type 'readonly ["#00C6F8", "#0072B5"]' is 'readonly' and cannot be assigned to the mutable type 'string[]'.
+src/screens/auth/SignupScreen.tsx(82,23): error TS2769: No overload matches this call.
+  Overload 1 of 2, '(props: LinearGradientProps): LinearGradient', gave the following error.
+    Type 'readonly ["#0A2A3F", "#0083B0", "#00C6F8"] | readonly ["#050C18", "#0A2A3F", "#0072B5"]' is not assignable to type 'string[]'.
+      The type 'readonly ["#0A2A3F", "#0083B0", "#00C6F8"]' is 'readonly' and cannot be assigned to the mutable type 'string[]'.
+  Overload 2 of 2, '(props: LinearGradientProps, context: any): LinearGradient', gave the following error.
+    Type 'readonly ["#0A2A3F", "#0083B0", "#00C6F8"] | readonly ["#050C18", "#0A2A3F", "#0072B5"]' is not assignable to type 'string[]'.
+      The type 'readonly ["#0A2A3F", "#0083B0", "#00C6F8"]' is 'readonly' and cannot be assigned to the mutable type 'string[]'.
+src/screens/auth/SignupScreen.tsx(160,33): error TS2769: No overload matches this call.
+  Overload 1 of 2, '(props: LinearGradientProps): LinearGradient', gave the following error.
+    The type 'readonly ["#00C6F8", "#0072B5"]' is 'readonly' and cannot be assigned to the mutable type 'string[]'.
+  Overload 2 of 2, '(props: LinearGradientProps, context: any): LinearGradient', gave the following error.
+    The type 'readonly ["#00C6F8", "#0072B5"]' is 'readonly' and cannot be assigned to the mutable type 'string[]'.
+src/screens/HomeScreen.tsx(185,11): error TS2769: No overload matches this call.
+  Overload 1 of 2, '(props: LinearGradientProps): LinearGradient', gave the following error.
+    Type 'readonly ["#0A2A3F", "#0083B0", "#00C6F8"] | readonly ["#050C18", "#0A2A3F", "#0072B5"]' is not assignable to type 'string[]'.
+      The type 'readonly ["#0A2A3F", "#0083B0", "#00C6F8"]' is 'readonly' and cannot be assigned to the mutable type 'string[]'.
+  Overload 2 of 2, '(props: LinearGradientProps, context: any): LinearGradient', gave the following error.
+    Type 'readonly ["#0A2A3F", "#0083B0", "#00C6F8"] | readonly ["#050C18", "#0A2A3F", "#0072B5"]' is not assignable to type 'string[]'.
+      The type 'readonly ["#0A2A3F", "#0083B0", "#00C6F8"]' is 'readonly' and cannot be assigned to the mutable type 'string[]'.
+src/screens/HomeScreen.tsx(304,35): error TS2769: No overload matches this call.
+  Overload 1 of 2, '(props: LinearGradientProps): LinearGradient', gave the following error.
+    The type 'readonly ["#00C6F8", "#0072B5"]' is 'readonly' and cannot be assigned to the mutable type 'string[]'.
+  Overload 2 of 2, '(props: LinearGradientProps, context: any): LinearGradient', gave the following error.
+    The type 'readonly ["#00C6F8", "#0072B5"]' is 'readonly' and cannot be assigned to the mutable type 'string[]'.
+src/screens/HomeScreen.tsx(348,56): error TS2559: Type '({ fontSize: number; fontWeight: "800"; } | { color: string; })[]' has no properties in common with type 'TextStyle'.
+src/screens/HomeScreen.tsx(360,17): error TS2559: Type '({ marginHorizontal: number; marginBottom: number; paddingVertical: number; } | { backgroundColor: string; borderColor: string; borderWidth: number; })[]' has no properties in common with type 'ViewStyle'.
+src/screens/SettingsScreen.tsx(221,25): error TS2769: No overload matches this call.
+  Overload 1 of 2, '(props: LinearGradientProps): LinearGradient', gave the following error.
+    Type 'readonly ["#0A2A3F", "#0083B0", "#00C6F8"] | readonly ["#050C18", "#0A2A3F", "#0072B5"]' is not assignable to type 'string[]'.
+      The type 'readonly ["#0A2A3F", "#0083B0", "#00C6F8"]' is 'readonly' and cannot be assigned to the mutable type 'string[]'.
+  Overload 2 of 2, '(props: LinearGradientProps, context: any): LinearGradient', gave the following error.
+    Type 'readonly ["#0A2A3F", "#0083B0", "#00C6F8"] | readonly ["#050C18", "#0A2A3F", "#0072B5"]' is not assignable to type 'string[]'.
+      The type 'readonly ["#0A2A3F", "#0083B0", "#00C6F8"]' is 'readonly' and cannot be assigned to the mutable type 'string[]'.
+src/screens/TripSetupScreen.tsx(134,25): error TS2769: No overload matches this call.
+  Overload 1 of 2, '(props: LinearGradientProps): LinearGradient', gave the following error.
+    Type 'readonly ["#0A2A3F", "#0083B0", "#00C6F8"] | readonly ["#050C18", "#0A2A3F", "#0072B5"]' is not assignable to type 'string[]'.
+      The type 'readonly ["#0A2A3F", "#0083B0", "#00C6F8"]' is 'readonly' and cannot be assigned to the mutable type 'string[]'.
+  Overload 2 of 2, '(props: LinearGradientProps, context: any): LinearGradient', gave the following error.
+    Type 'readonly ["#0A2A3F", "#0083B0", "#00C6F8"] | readonly ["#050C18", "#0A2A3F", "#0072B5"]' is not assignable to type 'string[]'.
+      The type 'readonly ["#0A2A3F", "#0083B0", "#00C6F8"]' is 'readonly' and cannot be assigned to the mutable type 'string[]'.
+src/services/supabase.ts(7,21): error TS2591: Cannot find name 'process'. Do you need to install type definitions for node? Try `npm i --save-dev @types/node` and then add 'node' to the types field in your tsconfig.
+src/services/supabase.ts(8,25): error TS2591: Cannot find name 'process'. Do you need to install type definitions for node? Try `npm i --save-dev @types/node` and then add 'node' to the types field in your tsconfig.
+src/store/useAuthStore.ts(60,13): error TS2741: Property 'timestamp' is missing in type '{ message: any; code: string; }' but required in type 'AppError'.
+src/store/useAuthStore.ts(92,13): error TS2741: Property 'timestamp' is missing in type '{ message: any; code: string; }' but required in type 'AppError'.
+src/store/useAuthStore.ts(131,13): error TS2741: Property 'timestamp' is missing in type '{ message: any; code: string; }' but required in type 'AppError'.
+src/store/useTripStore.ts(41,30): error TS2554: Expected 0 arguments, but got 1.
+src/store/useTripStore.ts(53,32): error TS2304: Cannot find name 'Waypoint'.
+src/store/useTripStore.ts(58,3): error TS2300: Duplicate identifier 'deleteTrip'.
+src/store/useTripStore.ts(74,3): error TS2300: Duplicate identifier 'deleteTrip'.
+src/store/useTripStore.ts(112,36): error TS2304: Cannot find name 'Waypoint'.
+src/store/useTripStore.ts(116,7): error TS2322: Type '{ id: string; triggered: boolean; }[]' is not assignable to type 'Waypoint[]'.
+  Type '{ id: string; triggered: boolean; }' is missing the following properties from type 'Waypoint': location, name, radiusMeters
+src/store/useTripStore.ts(464,3): error TS1117: An object literal cannot have multiple properties with the same name.
+src/utils/storage.ts(19,38): error TS2503: Cannot find namespace 'NodeJS'.
+src/utils/storage.ts(58,7): error TS2801: This condition will always return true since this 'Promise<any>' is always defined.

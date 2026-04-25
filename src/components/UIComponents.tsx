@@ -71,14 +71,14 @@ export const Button: React.FC<ButtonProps> = ({
   const textSize = { small: 13, medium: 15, large: 17 }[size];
 
   const isGradient = (variant === 'primary' || variant === 'danger' || variant === 'success') && !disabled;
-  const gradientColors = {
+  const gradientColors: string[] = ({
     primary: GRADIENTS.primaryVibrant,
-    danger: ['#FF6B6B', '#EF4444'] as const,
-    success: ['#34D399', '#10B981'] as const,
-    warning: ['#FCD34D', '#F59E0B'] as const,
-    outline: ['transparent', 'transparent'] as const,
-    ghost: ['transparent', 'transparent'] as const,
-  }[variant] ?? GRADIENTS.primaryVibrant;
+    danger: ['#FF6B6B', '#EF4444'],
+    success: ['#34D399', '#10B981'],
+    warning: ['#FCD34D', '#F59E0B'],
+    outline: ['transparent', 'transparent'],
+    ghost: ['transparent', 'transparent'],
+  }[variant] ?? GRADIENTS.primaryVibrant) as string[];
 
   const getFlatColor = () => {
     if (disabled) return colors.border;

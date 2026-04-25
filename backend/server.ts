@@ -174,16 +174,15 @@ app.get('/api/trips/history', extractUser, async (req: any, res: any) => {
 
 app.post('/api/trips/history', extractUser, async (req: any, res: any) => {
   try {
-    const { tripId, destinationName, radiusMeters, startTime, endTime, alarmTriggered } = req.body;
+    const { tripId, waypoints, startTime, endTime, alarmTriggered } = req.body;
     
     await query(
-      `INSERT INTO trip_history (user_id, trip_id, destination_name, radius_meters, start_time, end_time, alarm_triggered)
-       VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+      `INSERT INTO trip_history (user_id, trip_id, waypoints, start_time, end_time, alarm_triggered)
+       VALUES ($1, $2, $3, $4, $5, $6)`,
       [
         req.user.userId,
         tripId,
-        destinationName,
-        radiusMeters,
+        JSON.stringify(waypoints || []),
         new Date(startTime),
         new Date(endTime),
         alarmTriggered || false

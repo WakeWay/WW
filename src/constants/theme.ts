@@ -43,22 +43,22 @@ export const DARK_COLORS = {
 
 // ─── Gradient Tokens ─────────────────────────────────────────────────────────
 
-export const GRADIENTS = {
-  primary: ['#00A8D2', '#0083B0'] as const,
-  primaryVibrant: ['#00C6F8', '#0072B5'] as const,
-  accent: ['#FA8E21', '#F97316'] as const,
-  success: ['#10B981', '#059669'] as const,
-  danger: ['#FF6B6B', '#EF4444', '#DC2626'] as const,
-  warning: ['#FCD34D', '#F59E0B'] as const,
-  hero: ['#0A2A3F', '#0083B0', '#00C6F8'] as const,
-  heroDark: ['#050C18', '#0A2A3F', '#0072B5'] as const,
-  card: ['rgba(0,168,210,0.08)', 'rgba(0,131,176,0.04)'] as const,
-  glass: ['rgba(255,255,255,0.15)', 'rgba(255,255,255,0.05)'] as const,
-  glassDark: ['rgba(255,255,255,0.08)', 'rgba(255,255,255,0.02)'] as const,
-  alarmBg: ['#7F1D1D', '#EF4444', '#FF6B6B'] as const,
-  proximityGreen: ['#10B981', '#34D399'] as const,
-  proximityAmber: ['#F59E0B', '#FCD34D'] as const,
-  proximityRed: ['#EF4444', '#FF6B6B'] as const,
+export const GRADIENTS: Record<string, string[]> = {
+  primary: ['#00A8D2', '#0083B0'],
+  primaryVibrant: ['#00C6F8', '#0072B5'],
+  accent: ['#FA8E21', '#F97316'],
+  success: ['#10B981', '#059669'],
+  danger: ['#FF6B6B', '#EF4444', '#DC2626'],
+  warning: ['#FCD34D', '#F59E0B'],
+  hero: ['#0A2A3F', '#0083B0', '#00C6F8'],
+  heroDark: ['#050C18', '#0A2A3F', '#0072B5'],
+  card: ['rgba(0,168,210,0.08)', 'rgba(0,131,176,0.04)'],
+  glass: ['rgba(255,255,255,0.15)', 'rgba(255,255,255,0.05)'],
+  glassDark: ['rgba(255,255,255,0.08)', 'rgba(255,255,255,0.02)'],
+  alarmBg: ['#7F1D1D', '#EF4444', '#FF6B6B'],
+  proximityGreen: ['#10B981', '#34D399'],
+  proximityAmber: ['#F59E0B', '#FCD34D'],
+  proximityRed: ['#EF4444', '#FF6B6B'],
 };
 
 // ─── Shadow Presets ───────────────────────────────────────────────────────────

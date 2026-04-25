@@ -345,7 +345,7 @@ const HomeScreen = ({ navigation }: any) => {
                   {stat.displayText ? (
                     <Text style={[styles.statValue, { color: colors.text }]}>{stat.displayText}</Text>
                   ) : (
-                    <AnimatedNumber value={stat.value} style={[styles.statValue, { color: colors.text }]} />
+                    <AnimatedNumber value={stat.value} style={{ ...styles.statValue, color: colors.text }} />
                   )}
                   <Text style={[styles.statLabel, { color: colors.textSecondary }]}>{stat.label}</Text>
                 </View>
@@ -357,7 +357,7 @@ const HomeScreen = ({ navigation }: any) => {
 
         {/* ── Error ───────────────────────────────────── */}
         {(store.error || trackingError) && (
-          <Card style={[styles.errorCard, { backgroundColor: colors.danger + '15', borderColor: colors.danger + '40', borderWidth: 1 }]}>
+          <Card style={{ ...styles.errorCard, backgroundColor: colors.danger + '15', borderColor: colors.danger + '40', borderWidth: 1 }}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
               <Icon name="warning-outline" size={18} color={colors.danger} />
               <Text style={[styles.errorText, { color: colors.danger }]}>{store.error?.message || trackingError}</Text>

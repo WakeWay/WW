@@ -57,7 +57,7 @@ export const useAuthStore = create<AuthState & AuthActions>((set, get) => ({
       
       set({ otpSent: true, isLoading: false });
     } catch (err: any) {
-      set({ error: { message: err.message, code: 'auth/failed' }, isLoading: false });
+      set({ error: { message: err.message, code: 'auth/failed', timestamp: Date.now() }, isLoading: false });
     }
   },
 
@@ -89,7 +89,7 @@ export const useAuthStore = create<AuthState & AuthActions>((set, get) => ({
       // Synchronize with the cloud to immediately pull down trips for the new user!
       require('./useTripStore').useTripStore.getState().restoreAppState();
     } catch (err: any) {
-      set({ error: { message: err.message, code: 'auth/failed' }, isLoading: false });
+      set({ error: { message: err.message, code: 'auth/failed', timestamp: Date.now() }, isLoading: false });
     }
   },
 
@@ -128,7 +128,7 @@ export const useAuthStore = create<AuthState & AuthActions>((set, get) => ({
       require('./useTripStore').useTripStore.getState().clearAppData();
       set({ ...initialState });
     } catch (err: any) {
-      set({ error: { message: err.message, code: 'auth/failed' }, isLoading: false });
+      set({ error: { message: err.message, code: 'auth/failed', timestamp: Date.now() }, isLoading: false });
       throw err;
     }
   },

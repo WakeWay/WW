@@ -15,6 +15,7 @@ import type {
   PermissionsState,
   AppSettings,
   AppError,
+  Waypoint,
 } from '@/types';
 import { PermissionStatus } from '@/types';
 import {
@@ -31,21 +32,10 @@ import { DEFAULT_SETTINGS } from '@/constants';
 
 /**
  * Generate a UUID v4 using expo-crypto
- * Compatible with React Native environment
+ * Compatible with React Native environment (Expo SDK 50+)
  */
 const generateUUID = (): string => {
-  const bytes = Crypto.getRandomBytes(16);
-  bytes[6] = (bytes[6] & 0x0f) | 0x40; // set version
-  bytes[8] = (bytes[8] & 0x3f) | 0x80; // set variant
-  
-  const hex = bytes.toString('hex');
-  return [
-    hex.slice(0, 8),
-    hex.slice(8, 12),
-    hex.slice(12, 16),
-    hex.slice(16, 20),
-    hex.slice(20),
-  ].join('-');
+  return Crypto.randomUUID();
 };
 
 interface TripStoreActions {
@@ -56,33 +46,36 @@ interface TripStoreActions {
   startTracking: () => void;
   stopTracking: () => void;
   deleteTrip: (tripId: string) => void;
-  
+
   // Location updates
   updateCurrentLocation: (location: LocationData) => void;
   updateDistanceToDestination: () => void;
-  
+
   // Alarm management
   triggerAlarm: () => Promise<void>;
   dismissAlarm: () => void;
   snoozeAlarm: (minutes: number) => void;
-  
+
   // Permissions
   updatePermissions: (permissions: Partial<PermissionsState>) => void;
+
+  // History / trips
   saveTrips: (trips: Trip[]) => void;
   saveTripHistory: (entry: TripHistory[]) => void;
   clearTripHistory: () => void;
-  deleteTrip: (tripId: string) => void;
+
+  // Settings
   updateSettings: (newSettings: Partial<AppSettings>) => void;
   loadAppSettings: () => Promise<void>;
-  
+
   // Error handling
   setError: (error: AppError | null) => void;
-  
+
   // State restoration
   restoreAppState: () => Promise<void>;
   clearAppData: () => Promise<void>;
   clearSessionData: () => Promise<void>;
-  
+
   // Loading
   setIsLoadingLocation: (loading: boolean) => void;
   setIsTrackingActive: (tracking: boolean) => void;
@@ -459,25 +452,6 @@ export const useTripStore = create<TripStoreType>((set: any, get: any) => ({
     } catch (error) {
       console.error('Failed to clear session data:', error);
     }
-  },
-
-  clearTripHistory: () => {
-    set((state: TripStore) => {
-      saveTripHistory([]).catch((error) => {
-        console.error('Failed to clear trip history:', error);
-      });
-
-      const authState = useAuthStore.getState();
-      if (authState.user && authState.token) {
-        // NOTE: In production or a real device, change localhost to your computer's IP
-        fetch('https://wakeway.onrender.com/api/trips/history', {
-           method: 'DELETE',
-           headers: { 'Authorization': `Bearer ${authState.token}` }
-        }).catch(err => console.error('Failed to clear trip history on backend', err));
-      }
-
-      return { tripHistory: [] };
-    });
   },
 
   setIsLoadingLocation: (loading: boolean) => {

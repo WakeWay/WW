@@ -77,21 +77,22 @@ const FloatingLabelInput: React.FC<FloatingLabelInputProps> = ({
     <View style={[styles.wrapper, style]}>
       <Animated.View style={[styles.container, { borderColor, borderRadius: RADIUS.md }]}>
         {/* Floating label */}
-        <Animated.Text
-          style={[
-            styles.label,
-            {
-              top: labelTop,
-              fontSize: labelSize,
-              color: error ? colors.danger : labelColor,
-              backgroundColor: isDark ? colors.surface : '#FFFFFF',
-              left: icon ? 44 : 14,
-            },
-          ]}
-          pointerEvents="none"
-        >
-          {label}
-        </Animated.Text>
+        <View pointerEvents="none" style={StyleSheet.absoluteFill}>
+          <Animated.Text
+            style={[
+              styles.label,
+              {
+                top: labelTop,
+                fontSize: labelSize,
+                color: error ? colors.danger : labelColor,
+                backgroundColor: isDark ? colors.surface : '#FFFFFF',
+                left: icon ? 44 : 14,
+              },
+            ]}
+          >
+            {label}
+          </Animated.Text>
+        </View>
 
         <View style={styles.inputRow}>
           {icon && (

@@ -59,7 +59,7 @@ export const AlertProvider = ({ children }: { children: ReactNode }) => {
         cancelText={config.cancelText || 'Cancel'}
         confirmText={config.confirmText || 'OK'}
         confirmButtonColor={config.confirmButtonColor || colors.primary}
-        cancelButtonColor={config.cancelButtonColor || colors.surfaceVariant || colors.border}
+        cancelButtonColor={config.cancelButtonColor || colors.border}
         onCancelPressed={() => {
           hideAlert();
           if (config.onCancel) config.onCancel();

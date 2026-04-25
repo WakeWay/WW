@@ -16,11 +16,11 @@ const STORAGE_KEYS = {
 };
 
 // Debounce timers and pending data for writes
-const debounceTimers: Record<string, NodeJS.Timeout> = {};
+const debounceTimers: Record<string, ReturnType<typeof setTimeout>> = {};
 const pendingData: Record<string, any> = {};
 
 // Track in-flight read operations to prevent duplicate requests
-const readOperations: Record<string, Promise<any>> = {};
+const readOperations: Record<string, Promise<any> | undefined> = {};
 
 /**
  * Debounced storage write to batch multiple updates
@@ -56,7 +56,7 @@ const debounceWrite = (key: string, data: any, delayMs = 1000): Promise<void> =>
 const dedupRead = <T,>(key: string, readFn: () => Promise<T>): Promise<T> => {
   // If a read is already in flight for this key, return that promise
   if (readOperations[key]) {
-    return readOperations[key];
+    return readOperations[key] as Promise<T>;
   }
 
   // Start new read operation
