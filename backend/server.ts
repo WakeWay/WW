@@ -13,8 +13,24 @@ app.use(express.json());
 
 const JWT_SECRET = process.env.JWT_SECRET || 'wakeway-super-secret-key-replace-in-production';
 
+const getMissingEnvVars = () => {
+  const required = ['DATABASE_URL', 'JWT_SECRET', 'SMTP_HOST', 'SMTP_PORT', 'SMTP_USER', 'SMTP_PASS'];
+  return required.filter((key) => !process.env[key] || process.env[key] === '');
+};
+
 // Generate a random 6 digit OTP
 const generateOtp = () => Math.floor(100000 + Math.random() * 900000).toString();
+
+// Helper to avoid hanging the request if the SMTP provider blocks or is slow.
+async function sendOtpWithTimeout(email: string, otp: string, reason: 'login' | 'deactivate' | 'signup') {
+  const timeoutMs = 10000; // 10s
+  return Promise.race([
+    // original mailer promise
+    sendOtpEmail(email, otp, reason),
+    // timeout
+    new Promise((_, reject) => setTimeout(() => reject(new Error('SMTP send timeout')), timeoutMs)),
+  ]);
+}
 
 // =============== HEALTH CHECKS ===============
 
@@ -28,10 +44,17 @@ app.get('/api/ping', (req, res) => {
 
 app.post('/api/auth/request-otp', async (req, res) => {
   try {
+    const missing = getMissingEnvVars();
+    if (missing.length > 0) {
+      console.error('Missing backend env vars for request-otp:', missing);
+      return res.status(503).json({ error: `Backend not configured. Missing: ${missing.join(', ')}` });
+    }
+
     const { email, reason } = req.body;
     if (!email) return res.status(400).json({ error: 'Email is required' });
 
-    const emailLower = email.toLowerCase();
+    const emailLower = email.trim().toLowerCase();
+    console.log('[OTP] Request received', { email: `${emailLower.slice(0, 2)}***`, reason });
 
     // Validate user existence based on the action
     if (reason === 'login') {
@@ -46,19 +69,26 @@ app.post('/api/auth/request-otp', async (req, res) => {
       }
     }
     const otp = generateOtp();
-    const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
 
     // UPSERT the OTP
     await query(
       `INSERT INTO otps (email, code, expires_at) 
-       VALUES ($1, $2, $3)
+       VALUES ($1, $2, NOW() + INTERVAL '10 minutes')
        ON CONFLICT (email) DO UPDATE 
        SET code = EXCLUDED.code, expires_at = EXCLUDED.expires_at`,
-      [emailLower, otp, expiresAt]
+      [emailLower, otp]
     );
+    console.log('[OTP] Code stored', { reason });
 
     // Send via standard DB
-    await sendOtpEmail(emailLower, otp, reason);
+    try {
+      console.log('[OTP] Sending email', { reason });
+      await sendOtpWithTimeout(emailLower, otp, reason as any);
+      console.log('[OTP] Email sent', { reason });
+    } catch (e: any) {
+      console.error('OTP send error:', e && e.message ? e.message : e);
+      return res.status(502).json({ error: 'Failed to deliver OTP email' });
+    }
 
     res.json({ message: 'OTP sent successfully' });
   } catch (err: any) {
@@ -72,15 +102,27 @@ app.post('/api/auth/verify-otp', async (req, res) => {
     const { email, otp } = req.body;
     if (!email || !otp) return res.status(400).json({ error: 'Email and OTP are required' });
 
-    const emailLower = email.toLowerCase();
+    const emailLower = email.trim().toLowerCase();
+    const otpValue = String(otp).trim();
+    console.log('[OTP] Verify request received', {
+      email: `${emailLower.slice(0, 2)}***`,
+      codeLength: otpValue.length,
+    });
 
     // Check OTP
     const otpRes = await query(
-      `SELECT * FROM otps WHERE email = $1 AND code = $2 AND expires_at > NOW()`,
-      [emailLower, otp]
+      `SELECT * FROM otps WHERE email = $1 AND BTRIM(code) = $2 AND expires_at > NOW()`,
+      [emailLower, otpValue]
     );
+    console.log('[OTP] Verify lookup', { matchCount: otpRes.rows.length });
 
     if (otpRes.rows.length === 0) {
+      const diagnosticRes = await query(
+        `SELECT COUNT(*)::int AS total, COUNT(*) FILTER (WHERE expires_at > NOW())::int AS active
+         FROM otps WHERE email = $1`,
+        [emailLower]
+      );
+      console.log('[OTP] Verify diagnostic', diagnosticRes.rows[0]);
       return res.status(400).json({ error: 'Invalid or expired OTP' });
     }
 

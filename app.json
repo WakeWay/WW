@@ -1,5 +1,6 @@
 {
   "expo": {
+    "sdkVersion": "50.0.0",
     "name": "WakeWay",
     "slug": "wakeway-app",
     "version": "1.0.0",
@@ -70,9 +71,7 @@
         "projectId": "b3ca0b48-b637-421d-a685-d4513647fa4c"
       }
     },
-    "runtimeVersion": {
-      "policy": "appVersion"
-    },
+    "runtimeVersion": "1.0.0",
     "updates": {
       "url": "https://u.expo.dev/b3ca0b48-b637-421d-a685-d4513647fa4c"
     }

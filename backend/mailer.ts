@@ -6,14 +6,25 @@ const transporter = nodemailer.createTransport({
   host: process.env.SMTP_HOST || 'smtp.gmail.com',
   port: parseInt(process.env.SMTP_PORT || '587'),
   secure: process.env.SMTP_SECURE === 'true', // true for 465, false for other ports
+  connectionTimeout: 10000,
+  greetingTimeout: 10000,
+  socketTimeout: 10000,
   auth: {
     user: process.env.SMTP_USER,
     pass: process.env.SMTP_PASS,
   },
 });
 
-export const sendOtpEmail = async (toEmail: string, otpCode: string, reason: 'login' | 'deactivate' = 'login') => {
+export const sendOtpEmail = async (toEmail: string, otpCode: string, reason: 'login' | 'deactivate' | 'signup' = 'login') => {
   const isDeactivate = reason === 'deactivate';
+  console.log('[SMTP] Sending OTP email', {
+    host: process.env.SMTP_HOST || 'smtp.gmail.com',
+    port: parseInt(process.env.SMTP_PORT || '587'),
+    secure: process.env.SMTP_SECURE === 'true',
+    hasUser: Boolean(process.env.SMTP_USER),
+    hasPassword: Boolean(process.env.SMTP_PASS),
+    reason,
+  });
   const mailOptions = {
     from: `"WakeWay Auth" <${process.env.SMTP_USER}>`,
     to: toEmail,
@@ -35,4 +46,5 @@ export const sendOtpEmail = async (toEmail: string, otpCode: string, reason: 'lo
   };
 
   await transporter.sendMail(mailOptions);
+  console.log('[SMTP] Message accepted by provider');
 };

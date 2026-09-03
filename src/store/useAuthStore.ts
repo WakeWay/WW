@@ -32,6 +32,11 @@ interface AuthActions {
 // Note: If testing on a physical android device, you may need to replace localhost with your computer's local IP address (e.g. 192.168.1.16)
 const API_URL = 'https://wakeway.onrender.com/api';
 
+const maskEmail = (email: string) => {
+  const [name, domain] = email.split('@');
+  return domain ? `${name.slice(0, 2)}***@${domain}` : 'invalid-email';
+};
+
 const initialState: AuthState = {
   user: null,
   isLoggedIn: false,
@@ -46,6 +51,7 @@ export const useAuthStore = create<AuthState & AuthActions>((set, get) => ({
 
   requestOtp: async (email, reason = 'login') => {
     set({ isLoading: true, error: null });
+    console.log('[OTP] Requesting code', { url: `${API_URL}/auth/request-otp`, email: maskEmail(email), reason });
     try {
       const res = await fetch(`${API_URL}/auth/request-otp`, {
         method: 'POST',
@@ -53,23 +59,27 @@ export const useAuthStore = create<AuthState & AuthActions>((set, get) => ({
         body: JSON.stringify({ email, reason }),
       });
       const data = await res.json();
+      console.log('[OTP] Request response', { status: res.status, ok: res.ok, error: data.error });
       if (!res.ok) throw new Error(data.error || 'Failed to request OTP');
       
       set({ otpSent: true, isLoading: false });
     } catch (err: any) {
+      console.error('[OTP] Request failed', err?.message || err);
       set({ error: { message: err.message, code: 'auth/failed', timestamp: Date.now() }, isLoading: false });
     }
   },
 
   verifyOtp: async (email, otp) => {
     set({ isLoading: true, error: null });
+    console.log('[OTP] Verifying code', { url: `${API_URL}/auth/verify-otp`, email: maskEmail(email) });
     try {
       const res = await fetch(`${API_URL}/auth/verify-otp`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, otp }),
+        body: JSON.stringify({ email: email.trim(), otp: otp.trim() }),
       });
       const data = await res.json();
+      console.log('[OTP] Verify response', { status: res.status, ok: res.ok, error: data.error });
       if (!res.ok) throw new Error(data.error || 'Verification failed');
       
       await AsyncStorage.setItem('@auth_token', data.token);
@@ -89,6 +99,7 @@ export const useAuthStore = create<AuthState & AuthActions>((set, get) => ({
       // Synchronize with the cloud to immediately pull down trips for the new user!
       require('./useTripStore').useTripStore.getState().restoreAppState();
     } catch (err: any) {
+      console.error('[OTP] Verify failed', err?.message || err);
       set({ error: { message: err.message, code: 'auth/failed', timestamp: Date.now() }, isLoading: false });
     }
   },
