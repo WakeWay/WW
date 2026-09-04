@@ -23,13 +23,17 @@ const generateOtp = () => Math.floor(100000 + Math.random() * 900000).toString()
 
 // Helper to avoid hanging the request if the SMTP provider blocks or is slow.
 async function sendOtpWithTimeout(email: string, otp: string, reason: 'login' | 'deactivate' | 'signup') {
-  const timeoutMs = 10000; // 10s
-  return Promise.race([
-    // original mailer promise
-    sendOtpEmail(email, otp, reason),
-    // timeout
-    new Promise((_, reject) => setTimeout(() => reject(new Error('SMTP send timeout')), timeoutMs)),
-  ]);
+  const timeoutMs = Number.parseInt(process.env.SMTP_TIMEOUT_MS || '30000', 10);
+  let timeoutHandle: NodeJS.Timeout;
+  const timeout = new Promise<never>((_, reject) => {
+    timeoutHandle = setTimeout(() => reject(new Error('SMTP send timeout')), timeoutMs);
+  });
+
+  try {
+    return await Promise.race([sendOtpEmail(email, otp, reason), timeout]);
+  } finally {
+    clearTimeout(timeoutHandle!);
+  }
 }
 
 // =============== HEALTH CHECKS ===============
