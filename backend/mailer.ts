@@ -1,29 +1,11 @@
-import nodemailer from 'nodemailer';
-import SMTPTransport = require('nodemailer/lib/smtp-transport');
 import * as dotenv from 'dotenv';
 dotenv.config();
 
-const smtpTimeoutMs = Number.parseInt(process.env.SMTP_TIMEOUT_MS || '30000', 10);
-const smtpHost = process.env.SMTP_HOST || 'smtp.gmail.com';
-const smtpPort = parseInt(process.env.SMTP_PORT || '587', 10);
-const smtpSecure = process.env.SMTP_SECURE === 'true';
-const brevoApiKey = process.env.BREVO_API_KEY?.trim().replace(/^['"]|['"]$/g, '');
-const brevoFrom = process.env.BREVO_FROM?.trim().replace(/^['"]|['"]$/g, '');
-
-const smtpOptions: SMTPTransport.Options = {
-  host: smtpHost,
-  port: smtpPort,
-  secure: smtpSecure,
-  connectionTimeout: smtpTimeoutMs,
-  greetingTimeout: smtpTimeoutMs,
-  socketTimeout: smtpTimeoutMs,
-  auth: {
-    user: process.env.SMTP_USER,
-    pass: process.env.SMTP_PASS,
-  },
-};
-
-const transporter = nodemailer.createTransport(smtpOptions);
+const emailTimeoutMs = Number.parseInt(process.env.EMAILJS_TIMEOUT_MS || '30000', 10);
+const emailJsServiceId = process.env.EMAILJS_SERVICE_ID?.trim();
+const emailJsTemplateId = process.env.EMAILJS_TEMPLATE_ID?.trim();
+const emailJsPublicKey = process.env.EMAILJS_PUBLIC_KEY?.trim();
+const emailJsPrivateKey = process.env.EMAILJS_PRIVATE_KEY?.trim();
 
 export const sendOtpEmail = async (toEmail: string, otpCode: string, reason: 'login' | 'deactivate' | 'signup' = 'login') => {
   const isDeactivate = reason === 'deactivate';
@@ -43,79 +25,33 @@ export const sendOtpEmail = async (toEmail: string, otpCode: string, reason: 'lo
       <p>This code will expire in 10 minutes. If you did not request this, please ignore this email.</p>
       `;
 
-  if (brevoApiKey) {
-    console.log('[Email] Sending OTP through Brevo API', {
-      reason,
-      keyFormat: brevoApiKey.startsWith('xkeysib-') ? 'valid-prefix' : 'unexpected-prefix',
-      keyLength: brevoApiKey.length,
-    });
-    const response = await fetch('https://api.brevo.com/v3/smtp/email', {
+  if (emailJsServiceId && emailJsTemplateId && emailJsPublicKey) {
+    console.log('[Email] Sending OTP through EmailJS', { reason });
+    const response = await fetch('https://api.emailjs.com/api/v1.0/email/send', {
       method: 'POST',
-      headers: {
-        accept: 'application/json',
-        'api-key': brevoApiKey,
-        'content-type': 'application/json',
-      },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        sender: {
-          email: brevoFrom || process.env.SMTP_USER,
-          name: 'WakeWay Auth',
+        service_id: emailJsServiceId,
+        template_id: emailJsTemplateId,
+        user_id: emailJsPublicKey,
+        accessToken: emailJsPrivateKey,
+        template_params: {
+          to_email: toEmail,
+          email: toEmail,
+          otp_code: otpCode,
+          otp: otpCode,
+          reason,
         },
-        to: [{ email: toEmail }],
-        subject,
-        htmlContent: html,
       }),
-      signal: AbortSignal.timeout(smtpTimeoutMs),
+      signal: AbortSignal.timeout(emailTimeoutMs),
     });
 
     if (!response.ok) {
-      throw new Error(`Brevo API returned ${response.status}: ${await response.text()}`);
+      throw new Error(`EmailJS API returned ${response.status}: ${await response.text()}`);
     }
 
-    console.log('[Email] OTP accepted by Brevo');
+    console.log('[Email] OTP accepted by EmailJS');
     return;
   }
 
-  if (process.env.RESEND_API_KEY) {
-    console.log('[Email] Sending OTP through Resend API', { reason });
-    const response = await fetch('https://api.resend.com/emails', {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${process.env.RESEND_API_KEY}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        from: process.env.RESEND_FROM || 'WakeWay Auth <onboarding@resend.dev>',
-        to: [toEmail],
-        subject,
-        html,
-      }),
-      signal: AbortSignal.timeout(smtpTimeoutMs),
-    });
-
-    if (!response.ok) {
-      throw new Error(`Resend API returned ${response.status}: ${await response.text()}`);
-    }
-
-    console.log('[Email] OTP accepted by Resend');
-    return;
-  }
-
-  console.log('[SMTP] Sending OTP email', {
-    host: smtpHost,
-    port: smtpPort,
-    secure: smtpSecure,
-    hasUser: Boolean(process.env.SMTP_USER),
-    hasPassword: Boolean(process.env.SMTP_PASS),
-    reason,
-  });
-  const mailOptions = {
-    from: `"WakeWay Auth" <${process.env.SMTP_USER}>`,
-    to: toEmail,
-    subject,
-    html,
-  };
-
-  await transporter.sendMail(mailOptions);
-  console.log('[SMTP] Message accepted by provider');
 };

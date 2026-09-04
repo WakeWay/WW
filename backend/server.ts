@@ -15,12 +15,10 @@ const JWT_SECRET = process.env.JWT_SECRET || 'wakeway-super-secret-key-replace-i
 
 const getMissingEnvVars = () => {
   const required = ['DATABASE_URL', 'JWT_SECRET'];
-  const smtpConfigured = process.env.SMTP_HOST && process.env.SMTP_PORT && process.env.SMTP_USER && process.env.SMTP_PASS;
-  const resendConfigured = process.env.RESEND_API_KEY && process.env.RESEND_FROM;
-  const brevoConfigured = process.env.BREVO_API_KEY && (process.env.BREVO_FROM || process.env.SMTP_USER);
+  const emailJsConfigured = process.env.EMAILJS_SERVICE_ID && process.env.EMAILJS_TEMPLATE_ID && process.env.EMAILJS_PUBLIC_KEY;
 
-  if (!smtpConfigured && !resendConfigured && !brevoConfigured) {
-    required.push('SMTP_*, RESEND_API_KEY/RESEND_FROM, or BREVO_API_KEY/BREVO_FROM');
+  if (!emailJsConfigured) {
+    required.push('EMAILJS_SERVICE_ID, EMAILJS_TEMPLATE_ID, and EMAILJS_PUBLIC_KEY');
   }
 
   return required.filter((key) => !process.env[key] || process.env[key] === '');
@@ -31,7 +29,7 @@ const generateOtp = () => Math.floor(100000 + Math.random() * 900000).toString()
 
 // Helper to avoid hanging the request if the SMTP provider blocks or is slow.
 async function sendOtpWithTimeout(email: string, otp: string, reason: 'login' | 'deactivate' | 'signup') {
-  const timeoutMs = Number.parseInt(process.env.SMTP_TIMEOUT_MS || '30000', 10);
+  const timeoutMs = Number.parseInt(process.env.EMAILJS_TIMEOUT_MS || '30000', 10);
   let timeoutHandle: NodeJS.Timeout;
   const timeout = new Promise<never>((_, reject) => {
     timeoutHandle = setTimeout(() => reject(new Error('SMTP send timeout')), timeoutMs);
