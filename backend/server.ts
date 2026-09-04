@@ -14,7 +14,15 @@ app.use(express.json());
 const JWT_SECRET = process.env.JWT_SECRET || 'wakeway-super-secret-key-replace-in-production';
 
 const getMissingEnvVars = () => {
-  const required = ['DATABASE_URL', 'JWT_SECRET', 'SMTP_HOST', 'SMTP_PORT', 'SMTP_USER', 'SMTP_PASS'];
+  const required = ['DATABASE_URL', 'JWT_SECRET'];
+  const smtpConfigured = process.env.SMTP_HOST && process.env.SMTP_PORT && process.env.SMTP_USER && process.env.SMTP_PASS;
+  const resendConfigured = process.env.RESEND_API_KEY && process.env.RESEND_FROM;
+  const brevoConfigured = process.env.BREVO_API_KEY && (process.env.BREVO_FROM || process.env.SMTP_USER);
+
+  if (!smtpConfigured && !resendConfigured && !brevoConfigured) {
+    required.push('SMTP_*, RESEND_API_KEY/RESEND_FROM, or BREVO_API_KEY/BREVO_FROM');
+  }
+
   return required.filter((key) => !process.env[key] || process.env[key] === '');
 };
 
