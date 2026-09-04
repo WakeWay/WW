@@ -7,6 +7,8 @@ const smtpTimeoutMs = Number.parseInt(process.env.SMTP_TIMEOUT_MS || '30000', 10
 const smtpHost = process.env.SMTP_HOST || 'smtp.gmail.com';
 const smtpPort = parseInt(process.env.SMTP_PORT || '587', 10);
 const smtpSecure = process.env.SMTP_SECURE === 'true';
+const brevoApiKey = process.env.BREVO_API_KEY?.trim().replace(/^['"]|['"]$/g, '');
+const brevoFrom = process.env.BREVO_FROM?.trim().replace(/^['"]|['"]$/g, '');
 
 const smtpOptions: SMTPTransport.Options = {
   host: smtpHost,
@@ -41,18 +43,22 @@ export const sendOtpEmail = async (toEmail: string, otpCode: string, reason: 'lo
       <p>This code will expire in 10 minutes. If you did not request this, please ignore this email.</p>
       `;
 
-  if (process.env.BREVO_API_KEY) {
-    console.log('[Email] Sending OTP through Brevo API', { reason });
+  if (brevoApiKey) {
+    console.log('[Email] Sending OTP through Brevo API', {
+      reason,
+      keyFormat: brevoApiKey.startsWith('xkeysib-') ? 'valid-prefix' : 'unexpected-prefix',
+      keyLength: brevoApiKey.length,
+    });
     const response = await fetch('https://api.brevo.com/v3/smtp/email', {
       method: 'POST',
       headers: {
         accept: 'application/json',
-        'api-key': process.env.BREVO_API_KEY,
+        'api-key': brevoApiKey,
         'content-type': 'application/json',
       },
       body: JSON.stringify({
         sender: {
-          email: process.env.BREVO_FROM || process.env.SMTP_USER,
+          email: brevoFrom || process.env.SMTP_USER,
           name: 'WakeWay Auth',
         },
         to: [{ email: toEmail }],
