@@ -49,6 +49,18 @@ export interface TripHistory {
   alarmTriggerTime?: number;
 }
 
+export type TripShareStatus = 'active' | 'completed' | 'revoked' | 'expired';
+
+export interface TripShare {
+  id: string;
+  token: string;
+  shareUrl: string;
+  status: TripShareStatus;
+  expiresAt: string;
+  createdAt: string;
+  destinationName: string;
+}
+
 // Notification Types
 export interface AlarmNotification {
   id: string;
@@ -105,4 +117,5 @@ export interface TripStore {
   error: AppError | null;
   isLoadingLocation: boolean;
   isTrackingActive: boolean;
+  activeShare: TripShare | null;
 }

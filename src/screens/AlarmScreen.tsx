@@ -130,9 +130,15 @@ const AlarmScreen = ({ navigation }: any) => {
           </Animated.View>
 
           {/* Trip name */}
-          <Text style={styles.tripLabel}>DESTINATION REACHED</Text>
+          <Text style={styles.tripLabel}>
+            STOP {activeTrip.currentWaypointIndex + 1} OF {activeTrip.waypoints.length} REACHED
+          </Text>
           <Text style={styles.tripName}>{activeTrip.waypoints[activeTrip.currentWaypointIndex]?.name || 'Destination'}</Text>
-          <Text style={styles.subtitle}>Time to wake up! 🎉</Text>
+          <Text style={styles.subtitle}>
+            {activeTrip.currentWaypointIndex < activeTrip.waypoints.length - 1
+              ? 'Dismiss to continue to the next stop'
+              : 'Final destination reached'}
+          </Text>
 
           {/* Distance */}
           {store.currentLocation && activeTrip.distanceToDestination !== null && activeTrip.distanceToDestination !== undefined && (

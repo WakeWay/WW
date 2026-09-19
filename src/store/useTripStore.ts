@@ -16,6 +16,8 @@ import type {
   AppSettings,
   AppError,
   Waypoint,
+  TripShare,
+  TripShareStatus,
 } from '@/types';
 import { PermissionStatus } from '@/types';
 import {
@@ -29,6 +31,8 @@ import {
   loadSettings,
 } from '@utils/storage';
 import { DEFAULT_SETTINGS } from '@/constants';
+import { advanceWaypoint } from '@utils/routeProgress';
+import { getApiUrl, getOptionalApiUrl } from '@/config';
 
 /**
  * Generate a UUID v4 using expo-crypto
@@ -37,6 +41,8 @@ import { DEFAULT_SETTINGS } from '@/constants';
 const generateUUID = (): string => {
   return Crypto.randomUUID();
 };
+
+let lastSharedLocationAt = 0;
 
 interface TripStoreActions {
   // Trip management
@@ -55,6 +61,11 @@ interface TripStoreActions {
   triggerAlarm: () => Promise<void>;
   dismissAlarm: () => void;
   snoozeAlarm: (minutes: number) => void;
+
+  // Live trip sharing
+  createTripShare: (expiresInHours?: number) => Promise<TripShare>;
+  updateTripShare: (status?: TripShareStatus, eventType?: 'near_destination' | 'trip_completed') => Promise<void>;
+  revokeTripShare: () => Promise<void>;
 
   // Permissions
   updatePermissions: (permissions: Partial<PermissionsState>) => void;
@@ -97,6 +108,7 @@ const initialState: TripStore = {
   error: null,
   isLoadingLocation: false,
   isTrackingActive: false,
+  activeShare: null,
 };
 
 export const useTripStore = create<TripStoreType>((set: any, get: any) => ({
@@ -143,6 +155,9 @@ export const useTripStore = create<TripStoreType>((set: any, get: any) => ({
       saveTrips(updatedTrips).catch((error) => {
         console.error('Failed to persist trips:', error);
       });
+      saveActiveTrip(updated).catch((error) => {
+        console.error('Failed to persist active trip:', error);
+      });
 
       return {
         activeTrip: updated,
@@ -152,6 +167,13 @@ export const useTripStore = create<TripStoreType>((set: any, get: any) => ({
   },
 
   endActiveTrip: async () => {
+    const stateBeforeEnd = get();
+    if (stateBeforeEnd.activeShare && stateBeforeEnd.activeTrip) {
+      stateBeforeEnd.updateTripShare('completed', 'trip_completed').catch((error) => {
+        console.error('Failed to complete trip share:', error);
+      });
+    }
+
     set((state: TripStore) => {
       if (!state.activeTrip) return state;
 
@@ -183,7 +205,7 @@ export const useTripStore = create<TripStoreType>((set: any, get: any) => ({
       const authState = useAuthStore.getState();
       if (authState.user && authState.token) {
         // NOTE: In production or a real device, change localhost to your computer's IP
-        fetch('https://wakeway.onrender.com/api/trips/history', {
+        fetch(`${getApiUrl()}/trips/history`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -225,7 +247,23 @@ export const useTripStore = create<TripStoreType>((set: any, get: any) => ({
   },
 
   updateCurrentLocation: (location: LocationData) => {
+    const state = get();
     set({ currentLocation: location });
+
+    if (state.activeShare && state.activeTrip && Date.now() - lastSharedLocationAt >= 15000) {
+      lastSharedLocationAt = Date.now();
+      fetch(`${getApiUrl()}/trips/${state.activeTrip.id}/share/${state.activeShare.id}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${useAuthStore.getState().token}`,
+        },
+        body: JSON.stringify({
+          currentWaypointIndex: state.activeTrip.currentWaypointIndex,
+          location: { latitude: location.latitude, longitude: location.longitude },
+        }),
+      }).catch((error) => console.error('Failed to update shared location:', error));
+    }
   },
 
   updateDistanceToDestination: () => {
@@ -240,61 +278,176 @@ export const useTripStore = create<TripStoreType>((set: any, get: any) => ({
   },
 
   triggerAlarm: async () => {
-    set((state: TripStore) => {
-      if (!state.activeTrip) return state;
+    const state = get();
+    if (!state.activeTrip || state.activeTrip.alarmTriggered) return;
 
-      return {
-        activeTrip: {
-          ...state.activeTrip,
-          alarmTriggered: true,
-          alarmTriggerTime: Date.now(),
-        },
-      };
+    const updatedTrip = {
+      ...state.activeTrip,
+      alarmTriggered: true,
+      alarmTriggerTime: Date.now(),
+    };
+    const updatedTrips = state.trips.map((trip: Trip) =>
+      trip.id === updatedTrip.id ? updatedTrip : trip
+    );
+
+    set({ activeTrip: updatedTrip, trips: updatedTrips });
+    state.updateTripShare('active', 'near_destination').catch((error) => {
+      console.error('Failed to publish near-destination event:', error);
     });
+    await Promise.all([
+      saveTrips(updatedTrips),
+      saveActiveTrip(updatedTrip),
+    ]);
   },
 
   dismissAlarm: () => {
-    set((state: TripStore) => {
-      if (!state.activeTrip) return state;
+    const state = get();
+    if (!state.activeTrip || (!state.activeTrip.alarmTriggered && !state.activeTrip.alarmTriggerTime)) {
+      return;
+    }
 
-      // Only dismiss if it was actually triggered
-      if (!state.activeTrip.alarmTriggered && !state.activeTrip.alarmTriggerTime) {
-        return state;
-      }
+    const activeTrip = state.activeTrip;
+    const advancement = advanceWaypoint(activeTrip.waypoints, activeTrip.currentWaypointIndex);
+    const updatedTrip = {
+      ...activeTrip,
+      waypoints: advancement.waypoints,
+      currentWaypointIndex: advancement.nextWaypointIndex,
+      alarmTriggered: false,
+      alarmDismissed: advancement.isComplete,
+      snoozeUntil: undefined,
+      distanceToDestination: advancement.isComplete ? 0 : undefined,
+    };
+    const updatedTrips = state.trips.map((trip: Trip) =>
+      trip.id === updatedTrip.id ? updatedTrip : trip
+    );
 
-      const waypoints = [...state.activeTrip.waypoints];
-      waypoints[state.activeTrip.currentWaypointIndex] = {
-        ...waypoints[state.activeTrip.currentWaypointIndex],
-        triggered: true
-      };
-      
-      const nextIndex = state.activeTrip.currentWaypointIndex + 1;
-      const isFinished = nextIndex >= waypoints.length;
+    set({ activeTrip: updatedTrip, trips: updatedTrips });
 
-      return {
-        activeTrip: {
-          ...state.activeTrip,
-          waypoints,
-          currentWaypointIndex: isFinished ? state.activeTrip.currentWaypointIndex : nextIndex,
-          alarmTriggered: false,
-          alarmDismissed: isFinished ? true : false,
-        },
-      };
+    if (advancement.isComplete) {
+      get().endActiveTrip();
+      return;
+    }
+
+    saveTrips(updatedTrips).catch((error) => {
+      console.error('Failed to persist trips after waypoint completion:', error);
+    });
+    saveActiveTrip(updatedTrip).catch((error) => {
+      console.error('Failed to persist active trip after waypoint completion:', error);
     });
   },
 
   snoozeAlarm: (minutes: number) => {
     // Snooze logic: disable alarm for specified minutes
-    set((state: TripStore) => {
-      if (!state.activeTrip) return state;
-      return {
-        activeTrip: {
-          ...state.activeTrip,
-          alarmTriggered: false,
-          snoozeUntil: Date.now() + minutes * 60 * 1000,
-        },
-      };
+    const state = get();
+    if (!state.activeTrip) return;
+
+    const updatedTrip = {
+      ...state.activeTrip,
+      alarmTriggered: false,
+      snoozeUntil: Date.now() + minutes * 60 * 1000,
+    };
+    const updatedTrips = state.trips.map((trip: Trip) =>
+      trip.id === updatedTrip.id ? updatedTrip : trip
+    );
+
+    set({ activeTrip: updatedTrip, trips: updatedTrips });
+    saveTrips(updatedTrips).catch((error) => {
+      console.error('Failed to persist trips after snooze:', error);
     });
+    saveActiveTrip(updatedTrip).catch((error) => {
+      console.error('Failed to persist active trip after snooze:', error);
+    });
+  },
+
+  createTripShare: async (expiresInHours = 24) => {
+    const state = get();
+    const authState = useAuthStore.getState();
+    if (!state.activeTrip || !authState.token) throw new Error('Sign in and start a trip before sharing');
+
+    const currentWaypoint = state.activeTrip.waypoints[state.activeTrip.currentWaypointIndex];
+    const shareEndpoint = `${getApiUrl()}/trips/${state.activeTrip.id}/share`;
+    console.log('[Share] POST', shareEndpoint);
+    console.log('[Share] destination:', currentWaypoint?.location, 'name:', currentWaypoint?.name);
+
+    let response: Response;
+    try {
+      response = await fetch(shareEndpoint, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${authState.token}`,
+        },
+        body: JSON.stringify({
+          destinationName: currentWaypoint?.name || 'Destination',
+          destination: currentWaypoint?.location,
+          currentWaypointIndex: state.activeTrip.currentWaypointIndex,
+          expiresInHours,
+        }),
+      });
+    } catch (networkErr: any) {
+      console.error('[Share] Network error:', networkErr?.message ?? networkErr);
+      throw networkErr;
+    }
+
+    const rawText = await response.text();
+    console.log('[Share] HTTP', response.status, '| body:', rawText.slice(0, 300));
+
+    let data: any;
+    try {
+      data = JSON.parse(rawText);
+    } catch {
+      throw new Error(`Server returned non-JSON (HTTP ${response.status}): ${rawText.slice(0, 120)}`);
+    }
+
+    if (!response.ok) throw new Error(data.error || 'Unable to create share link');
+
+    // The public share page is /share/:token — not under /api/
+    const baseUrl = process.env.EXPO_PUBLIC_API_URL?.replace(/\/$/, '') ?? '';
+    const share: TripShare = {
+      ...data.share,
+      token: data.token,
+      shareUrl: `${baseUrl}/share/${data.token}`,
+    };
+    set({ activeShare: share });
+    return share;
+  },
+
+  updateTripShare: async (status = 'active', eventType) => {
+    const state = get();
+    const token = useAuthStore.getState().token;
+    if (!state.activeShare || !state.activeTrip || !token) return;
+
+    const response = await fetch(`${getApiUrl()}/trips/${state.activeTrip.id}/share/${state.activeShare.id}`, {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`,
+      },
+      body: JSON.stringify({
+        status,
+        eventType,
+        currentWaypointIndex: state.activeTrip.currentWaypointIndex,
+        location: state.currentLocation
+          ? { latitude: state.currentLocation.latitude, longitude: state.currentLocation.longitude }
+          : undefined,
+      }),
+    });
+    if (!response.ok) throw new Error('Unable to update trip share');
+    if (status === 'completed') set({ activeShare: null });
+  },
+
+  revokeTripShare: async () => {
+    const state = get();
+    const token = useAuthStore.getState().token;
+    if (!state.activeShare || !state.activeTrip || !token) return;
+
+    const response = await fetch(`${getApiUrl()}/trips/${state.activeTrip.id}/share/${state.activeShare.id}`, {
+      method: 'DELETE',
+      headers: { 'Authorization': `Bearer ${token}` },
+    });
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error || 'Unable to revoke trip share');
+    set({ activeShare: null });
   },
 
   updatePermissions: (permissions: Partial<PermissionsState>) => {
@@ -325,7 +478,7 @@ export const useTripStore = create<TripStoreType>((set: any, get: any) => ({
       const authState = useAuthStore.getState();
       if (authState.user && authState.token) {
         // NOTE: In production or a real device, change localhost to your computer's IP
-        fetch('https://wakeway.onrender.com/api/trips/history', {
+        fetch(`${getApiUrl()}/trips/history`, {
            method: 'DELETE',
            headers: { 'Authorization': `Bearer ${authState.token}` }
         }).catch(err => console.error('Failed to clear trip history on backend', err));
@@ -344,7 +497,7 @@ export const useTripStore = create<TripStoreType>((set: any, get: any) => ({
 
       const authState = useAuthStore.getState();
       if (authState.user && authState.token) {
-        fetch(`https://wakeway.onrender.com/api/trips/history/${tripId}`, {
+        fetch(`${getApiUrl()}/trips/history/${tripId}`, {
            method: 'DELETE',
            headers: { 'Authorization': `Bearer ${authState.token}` }
         }).catch(err => console.error('Failed to delete trip on backend', err));
@@ -392,26 +545,50 @@ export const useTripStore = create<TripStoreType>((set: any, get: any) => ({
       let tripHistory = localTripHistory || [];
       const authState = useAuthStore.getState();
       
-      if (authState.user && authState.token) {
-        try {
-          const res = await fetch('https://wakeway.onrender.com/api/trips/history', {
-             headers: { 'Authorization': `Bearer ${authState.token}` }
-          });
-          const data = await res.json();
-          if (res.ok && data.trips && Array.isArray(data.trips)) {
-           tripHistory = data.trips.map((row: any) => ({
-               tripId: row.trip_id,
-               waypoints: row.waypoints || [], // Assuming backend returns waypoints
-               startTime: new Date(row.start_time).getTime(),
-               endTime: new Date(row.end_time).getTime(),
-               alarmTriggered: row.alarm_triggered
-             }));
-             // Sync down to local storage
-             require('@utils/storage').saveTripHistory(tripHistory).catch(() => {});
+      const apiUrl = getOptionalApiUrl();
+      if (authState.user && authState.token && apiUrl) {
+        // Render free-tier servers sleep after inactivity; retry a few times to
+        // give the server a chance to wake up before giving up.
+        const fetchWithTimeout = (url: string, options: RequestInit, timeoutMs: number) => {
+          const controller = new AbortController();
+          const timer = setTimeout(() => controller.abort(), timeoutMs);
+          return fetch(url, { ...options, signal: controller.signal }).finally(() => clearTimeout(timer));
+        };
+
+        let fetched = false;
+        for (let attempt = 0; attempt < 3 && !fetched; attempt++) {
+          try {
+            if (attempt > 0) await new Promise(r => setTimeout(r, attempt * 2000));
+            const historyUrl = `${apiUrl}/trips/history`;
+            if (attempt === 0) console.log('[History] Fetching:', historyUrl);
+            const res = await fetchWithTimeout(
+              historyUrl,
+              { headers: { 'Authorization': `Bearer ${authState.token}` } },
+              15000 // 15 s per attempt
+            );
+            if (!res.ok) {
+              const text = await res.text();
+              console.warn(`[History] HTTP ${res.status}:`, text.slice(0, 200));
+              fetched = true; // don't retry on HTTP errors
+            } else {
+              const data = await res.json();
+              if (data.trips && Array.isArray(data.trips)) {
+                tripHistory = data.trips.map((row: any) => ({
+                  tripId: row.trip_id,
+                  waypoints: row.waypoints || [],
+                  startTime: new Date(row.start_time).getTime(),
+                  endTime: new Date(row.end_time).getTime(),
+                  alarmTriggered: row.alarm_triggered,
+                }));
+                require('@utils/storage').saveTripHistory(tripHistory).catch(() => {});
+              }
+              fetched = true;
+            }
+          } catch (e: any) {
+            console.warn(`[History] Attempt ${attempt + 1} error:`, e?.message ?? e);
           }
-        } catch (e) {
-          console.error('Failed to fetch remote history', e);
         }
+        if (!fetched) console.error('Failed to fetch remote history after 3 attempts');
       }
 
       // Clear old format trips
@@ -424,6 +601,7 @@ export const useTripStore = create<TripStoreType>((set: any, get: any) => ({
         trips: (trips || []).filter(t => t.waypoints),
         tripHistory: tripHistory.filter(t => t.waypoints),
         settings: settings || DEFAULT_SETTINGS,
+        activeShare: null,
       });
     } catch (error) {
       console.error('Failed to restore app state:', error);
@@ -447,7 +625,8 @@ export const useTripStore = create<TripStoreType>((set: any, get: any) => ({
       set({
         activeTrip: null,
         trips: [],
-        tripHistory: []
+        tripHistory: [],
+        activeShare: null,
       });
     } catch (error) {
       console.error('Failed to clear session data:', error);

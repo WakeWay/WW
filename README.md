@@ -1,6 +1,7 @@
 # WakeWay - Location-Based Alarm Application
 
 ## 📋 Table of Contents
+
 - [Project Overview](#project-overview)
 - [Tech Stack](#tech-stack)
 - [Installation & Setup](#installation--setup)
@@ -10,6 +11,7 @@
 - [Development Guide](#development-guide)
 - [Testing Strategy](#testing-strategy)
 - [Deployment](#deployment)
+- [Documentation](#documentation)
 - [Troubleshooting](#troubleshooting)
 - [Performance Optimization](#performance-optimization)
 
@@ -20,11 +22,13 @@
 **WakeWay** is a production-grade location-based alarm application built with React Native and Expo. It solves the critical problem of missing transportation stops by triggering an alert when users enter a configurable radius around their destination.
 
 ### Key Problem Solved
+
 - ✈️ Travelers missing their stop due to sleep or distraction
 - 📍 Lack of real-time destination awareness
 - 🔔 Need for reliable background location tracking
 
 ### Core Value Proposition
+
 - **Battery Efficient**: Optimized location tracking
 - **Reliable**: Works even when app is closed
 - **Simple**: One-tap trip setup
@@ -34,25 +38,26 @@
 
 ## 🧱 Tech Stack
 
-| Layer | Technology | Version | Purpose |
-|-------|------------|---------|---------|
-| **Runtime** | React Native | 0.73.0 | Cross-platform mobile framework |
-| **Meta-Framework** | Expo | ~50.0.0 | Simplified RN development |
-| **Language** | TypeScript | ~5.3.0 | Type safe development |
-| **State** | Zustand | ^4.4.0 | Lightweight state management |
-| **Location** | Expo Location | ~16.5.0 | GPS tracking |
-| **Background** | Expo Task Manager | ~11.6.0 | Background tasks |
-| **Maps** | react-native-maps | 1.7.1 | Map visualization |
-| **Notifications** | Expo Notifications | ~0.27.0 | Alarms & alerts |
-| **Navigation** | @react-navigation | ^4.11.13 | Screen routing |
-| **Storage** | AsyncStorage | ^1.21.0 | Persistent data |
-| **Testing** | Jest + Expo | ^29.5.0 | Unit & integration tests |
+| Layer              | Technology         | Version  | Purpose                         |
+| ------------------ | ------------------ | -------- | ------------------------------- |
+| **Runtime**        | React Native       | 0.73.0   | Cross-platform mobile framework |
+| **Meta-Framework** | Expo               | ~50.0.0  | Simplified RN development       |
+| **Language**       | TypeScript         | ~5.3.0   | Type safe development           |
+| **State**          | Zustand            | ^4.4.0   | Lightweight state management    |
+| **Location**       | Expo Location      | ~16.5.0  | GPS tracking                    |
+| **Background**     | Expo Task Manager  | ~11.6.0  | Background tasks                |
+| **Maps**           | react-native-maps  | 1.7.1    | Map visualization               |
+| **Notifications**  | Expo Notifications | ~0.27.0  | Alarms & alerts                 |
+| **Navigation**     | @react-navigation  | ^4.11.13 | Screen routing                  |
+| **Storage**        | AsyncStorage       | ^1.21.0  | Persistent data                 |
+| **Testing**        | Jest + Expo        | ^29.5.0  | Unit & integration tests        |
 
 ---
 
 ## 🚀 Installation & Setup
 
 ### Prerequisites
+
 - Node.js 16.0 or higher
 - npm or yarn
 - Expo CLI: `npm install -g expo-cli`
@@ -136,14 +141,29 @@ WakeWay/
 ├── app.json                        # Expo configuration
 ├── tsconfig.json                   # TypeScript config
 ├── babel.config.js                 # Babel configuration
+├── docs/                           # Architecture, setup, delivery, and roadmap docs
+│   ├── README.md
+│   ├── ARCHITECTURE.md
+│   ├── PRODUCTION_ARCHITECTURE_REVIEW.md
+│   ├── FEATURE_EXPANSION_ROADMAP.md
+│   ├── QUICKSTART.md
+│   ├── DEPLOYMENT.md
+│   └── DELIVERY.md
 └── README.md                       # This file
 ```
+
+---
+
+## Documentation
+
+The complete documentation index is in [docs/README.md](docs/README.md). Start with the [production architecture review](docs/PRODUCTION_ARCHITECTURE_REVIEW.md) for current engineering priorities and the [feature expansion roadmap](docs/FEATURE_EXPANSION_ROADMAP.md) for future product work.
 
 ---
 
 ## 🌟 Core Features
 
 ### 1. **One-Tap Trip Starting**
+
 ```typescript
 // User experience flow
 User taps "Start Trip"
@@ -158,12 +178,14 @@ Begin tracking
 ```
 
 ### 2. **Background Location Tracking**
+
 - Foreground + background location updates
 - Optimized for battery (updates every 15 seconds)
 - Continues when screen off or app minimized
 - Task Manager integration for reliability
 
 ### 3. **Smart Alarm System**
+
 - Haversine formula for accurate distance
 - GPS drift protection (jump detection)
 - 7% buffer to prevent missed alerts
@@ -171,12 +193,14 @@ Begin tracking
 - One-alarm-per-trip guarantee
 
 ### 4. **Map Integration**
+
 - Real-time current location
 - Destination marker
 - Radius visualization circle
 - Distance display
 
 ### 5. **Trip Management**
+
 - Save multiple trips
 - View trip history
 - Cancel active trips
@@ -187,6 +211,7 @@ Begin tracking
 ## 🏗️ Architecture
 
 ### State Management (Zustand)
+
 ```typescript
 // Single source of truth
 const store = useTripStore();
@@ -206,6 +231,7 @@ const store = useTripStore();
 ```
 
 ### Service Layer
+
 ```
 ├── locationService (Expo Location API)
 │   ├── requestPermissions()
@@ -222,6 +248,7 @@ const store = useTripStore();
 ```
 
 ### Background Task Flow
+
 ```
 User location update (every 15 seconds)
   ↓
@@ -302,14 +329,15 @@ expo prebuild --clean
 ## 🧪 Testing Strategy
 
 ### Unit Tests (Distance Calculation)
+
 ```typescript
-describe('Distance Calculator', () => {
-  test('SF to LA distance', () => {
+describe("Distance Calculator", () => {
+  test("SF to LA distance", () => {
     const distance = calculateDistance(SF, LA);
     expect(distance).toBeGreaterThan(550000);
   });
 
-  test('Alarm triggers within radius', () => {
+  test("Alarm triggers within radius", () => {
     const result = isWithinRadius(current, dest, 500);
     expect(result).toBe(true);
   });
@@ -317,6 +345,7 @@ describe('Distance Calculator', () => {
 ```
 
 ### Integration Tests (Alarm Flow)
+
 ```typescript
 // Test complete flow
 1. Create trip
@@ -329,6 +358,7 @@ describe('Distance Calculator', () => {
 ### Manual Test Scenarios
 
 #### Scenario 1: High-Speed Travel
+
 ```
 ✓ Start trip with 500m radius
 ✓ Drive at 60 km/h toward destination
@@ -337,6 +367,7 @@ describe('Distance Calculator', () => {
 ```
 
 #### Scenario 2: GPS Dropout
+
 ```
 ✓ Start trip
 ✓ Disable location permission mid-trip
@@ -345,6 +376,7 @@ describe('Distance Calculator', () => {
 ```
 
 #### Scenario 3: App Backgrounding
+
 ```
 ✓ Start trip
 ✓ Send app to background
@@ -353,6 +385,7 @@ describe('Distance Calculator', () => {
 ```
 
 #### Scenario 4: Battery Saver Mode
+
 ```
 ✓ Enable device battery saver
 ✓ Start trip
@@ -361,6 +394,7 @@ describe('Distance Calculator', () => {
 ```
 
 ### Test Commands
+
 ```bash
 npm test                      # Run all tests
 npm run test:watch           # Watch mode
@@ -402,24 +436,29 @@ eas build --platform android --local
 
 ```bash
 # .env
-EXPO_PUBLIC_API_URL=https://api.wakeway.com
+EXPO_PUBLIC_API_URL=<configured-at-build-time>
 EXPO_PUBLIC_MAPS_API_KEY=your_key_here
 EXPO_PUBLIC_ENVIRONMENT=production
 ```
 
+Create an untracked root `.env` from `.env.example` and set `EXPO_PUBLIC_API_URL` to the API origin used by your environment. Without it, the app continues with local data but authentication, remote history, and live sharing remain unavailable.
+
 ### App Store Submission
 
 #### iOS App Store
+
 1. Update version in `app.json`
 2. Build: `eas build --platform ios`
 3. Submit: `eas submit --platform ios`
 
 #### Google Play Store
+
 1. Update `versionCode` in `app.json`
 2. Build: `eas build --platform android --release-channel production`
 3. Submit: `eas submit --platform android`
 
 ### Production Checklist
+
 - [ ] Permissions properly requested
 - [ ] Error handling for all edge cases
 - [ ] Battery optimization enabled
@@ -436,14 +475,16 @@ EXPO_PUBLIC_ENVIRONMENT=production
 ## 🔧 Troubleshooting
 
 ### Location Not Updating
+
 ```typescript
 // Check: Permissions granted
 const perms = await locationService.checkPermissions();
-console.log('Location permission:', perms.location);
+console.log("Location permission:", perms.location);
 
 // Check: Background task registered
-const isTaskDefined = await TaskManager.isTaskRegisteredAsync(LOCATION_TASK_NAME);
-console.log('Background task active:', isTaskDefined);
+const isTaskDefined =
+  await TaskManager.isTaskRegisteredAsync(LOCATION_TASK_NAME);
+console.log("Background task active:", isTaskDefined);
 
 // Solution: Restart location tracking
 await locationService.startLocationWatching();
@@ -451,20 +492,22 @@ await locationService.startBackgroundLocationTask();
 ```
 
 ### Alarm Not Triggering
+
 ```typescript
 // Debug: Enable logging
 LOG_LOCATION_UPDATES = true;
 LOG_DISTANCE_CALCULATIONS = true;
 
 // Check logs
-console.log('[BG-DISTANCE]', { distance, radius });
+console.log("[BG-DISTANCE]", { distance, radius });
 
 // Verify alarm logic
 const isInRadius = isWithinRadius(location, dest, radius);
-console.log('Within radius:', isInRadius);
+console.log("Within radius:", isInRadius);
 ```
 
 ### App Crashes on Startup
+
 ```typescript
 // Clear corrupted storage
 await clearAllStorage();
@@ -474,6 +517,7 @@ expo start --c  // Clear cache
 ```
 
 ### Background Task Not Starting
+
 ```bash
 # Android: Check battery optimization
 Settings → Battery → Battery Saver → WakeWay → Don't optimize
@@ -490,6 +534,7 @@ npm start --clear
 ## ⚡ Performance Optimization
 
 ### Battery Optimization
+
 ```typescript
 // ✓ Already implemented
 - Location updates throttled to 15s intervals
@@ -505,6 +550,7 @@ npm start --clear
 ```
 
 ### Memory Optimization
+
 ```typescript
 // ✓ Already implemented
 - Zustand (lightweight store)
@@ -520,6 +566,7 @@ npm start --clear
 ```
 
 ### Network Optimization
+
 ```typescript
 // Recommendations
 - Cache map tiles locally
@@ -529,13 +576,14 @@ npm start --clear
 ```
 
 ### Code Splitting
+
 ```typescript
 // Already using navigation-based code splitting
 const HomeStack = () => {
   // HomeScreen lazy loaded
   // TripSetupScreen lazy loaded
   // MapScreen lazy loaded
-}
+};
 ```
 
 ---
@@ -543,12 +591,14 @@ const HomeStack = () => {
 ## 📊 Analytics & Monitoring
 
 ### Recommended Services
+
 - **Crash Reporting**: Sentry, Bugsnag
 - **Analytics**: Firebase Analytics, Mixpanel
 - **Performance**: Firebase Performance Monitoring
 - **Logs**: LogRocket, Datadog
 
 ### Key Metrics to Track
+
 ```typescript
 - Alarm trigger rate
 - Location accuracy (meters)
@@ -564,6 +614,7 @@ const HomeStack = () => {
 ## 🔒 Security Considerations
 
 ### Permission Handling
+
 ```typescript
 // ✓ Implemented
 - Graceful permission denial handling
@@ -579,6 +630,7 @@ const HomeStack = () => {
 ```
 
 ### Data Privacy
+
 - Location data stored locally (not sent to server)
 - History stored in AsyncStorage (device only)
 - No user tracking without explicit consent
@@ -605,6 +657,7 @@ WakeWay © 2024. All rights reserved.
 ## 👥 Contributing
 
 Contributions welcome! Please follow these guidelines:
+
 1. Create feature branch: `git checkout -b feature/your-feature`
 2. Write tests
 3. Submit PR with description
@@ -625,4 +678,4 @@ Contributions welcome! Please follow these guidelines:
 
 ---
 
-*Built with ❤️ for travelers who don't want to miss their stop.*
+_Built with ❤️ for travelers who don't want to miss their stop._

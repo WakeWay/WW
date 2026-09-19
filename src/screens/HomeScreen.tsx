@@ -16,6 +16,8 @@ import {
   Platform,
   StatusBar,
   Animated,
+  Share,
+  Alert,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useFocusEffect } from '@react-navigation/native';
@@ -27,9 +29,11 @@ import ProximityRing from '@components/ProximityRing';
 import AnimatedNumber from '@components/AnimatedNumber';
 import { useTheme } from '@hooks/useTheme';
 import { formatDistance } from '@utils/distanceCalculator';
+import { getRouteProgress, getWaypointStatus } from '@utils/routeProgress';
 import { GRADIENTS, SHADOWS, RADIUS, SPACING } from '@/constants/theme';
 import { useAuthStore } from '@store/useAuthStore';
 import { notificationService } from '@services/notificationService';
+import { getOptionalApiUrl } from '@/config';
 
 // ─── Greeting helper ──────────────────────────────────────────────────────────
 
@@ -117,6 +121,7 @@ const HomeScreen = ({ navigation }: any) => {
   const [refreshing, setRefreshing] = useState(false);
   const [snoozeMinutes, setSnoozeMinutes] = useState(5);
   const [showSnoozeOptions, setShowSnoozeOptions] = useState(false);
+  const [isSharing, setIsSharing] = useState(false);
 
   // Live duration timer
   const elapsed = useLiveTimer(activeTrip?.startTime ?? null);
@@ -164,6 +169,43 @@ const HomeScreen = ({ navigation }: any) => {
     ]).catch(() => {});
   };
 
+  const handleShareTrip = async () => {
+    if (!getOptionalApiUrl()) {
+      Alert.alert('Sharing unavailable', 'Configure EXPO_PUBLIC_API_URL in the mobile environment, then restart Expo.');
+      return;
+    }
+
+    setIsSharing(true);
+    try {
+      const share = await store.createTripShare(24);
+      await Share.share({
+        title: 'Share WakeWay trip',
+        message: `Track my WakeWay trip to ${share.destinationName}. This link expires at ${new Date(share.expiresAt).toLocaleString()}: ${share.shareUrl}`,
+      });
+    } catch (error) {
+      store.setError({
+        code: 'SHARE_FAILED',
+        message: error instanceof Error ? error.message : 'Unable to create a trip share',
+        timestamp: Date.now(),
+      });
+      Alert.alert('Unable to share trip', error instanceof Error ? error.message : 'Please try again.');
+    } finally {
+      setIsSharing(false);
+    }
+  };
+
+  const handleRevokeShare = async () => {
+    try {
+      await store.revokeTripShare();
+    } catch (error) {
+      store.setError({
+        code: 'SHARE_REVOKE_FAILED',
+        message: error instanceof Error ? error.message : 'Unable to revoke trip sharing',
+        timestamp: Date.now(),
+      });
+    }
+  };
+
   const handleRefresh = () => {
     setRefreshing(true);
     setTimeout(() => setRefreshing(false), 1000);
@@ -171,6 +213,9 @@ const HomeScreen = ({ navigation }: any) => {
 
   const totalTrips = store.tripHistory.length;
   const alarmsUsed = store.tripHistory.filter((t: any) => t.alarmTriggered).length;
+  const routeProgress = activeTrip
+    ? getRouteProgress(activeTrip.waypoints, activeTrip.currentWaypointIndex)
+    : null;
 
   return (
     <SafeAreaView style={styles.container}>
@@ -231,6 +276,47 @@ const HomeScreen = ({ navigation }: any) => {
                 </Text>
               </View>
 
+              {routeProgress && activeTrip.waypoints.length > 1 && (
+                <View style={styles.routeProgressSection}>
+                  <View style={styles.routeProgressHeader}>
+                    <Text style={[styles.routeProgressLabel, { color: colors.textSecondary }]}>Route progress</Text>
+                    <Text style={[styles.routeProgressValue, { color: colors.primary }]}>
+                      {routeProgress.completedCount}/{routeProgress.totalCount} stops
+                    </Text>
+                  </View>
+                  <View style={[styles.routeProgressTrack, { backgroundColor: colors.border }]}>
+                    <View style={[styles.routeProgressFill, { width: `${routeProgress.percentage}%`, backgroundColor: colors.success }]} />
+                  </View>
+                  <View style={styles.waypointList}>
+                    {activeTrip.waypoints.map((waypoint, index) => {
+                      const status = getWaypointStatus(waypoint, index, activeTrip.currentWaypointIndex);
+                      const statusColor = status === 'completed'
+                        ? colors.success
+                        : status === 'current'
+                          ? colors.primary
+                          : colors.textSecondary;
+                      const statusIcon = status === 'completed'
+                        ? 'checkmark-circle-outline'
+                        : status === 'current'
+                          ? 'radio-button-on'
+                          : 'ellipse-outline';
+
+                      return (
+                        <View key={waypoint.id} style={styles.waypointRow}>
+                          <Icon name={statusIcon} size={15} color={statusColor} />
+                          <Text style={[styles.waypointName, { color: statusColor }]} numberOfLines={1}>
+                            {waypoint.name || `Stop ${index + 1}`}
+                          </Text>
+                          <Text style={[styles.waypointState, { color: colors.textSecondary }]}>
+                            {status === 'completed' ? 'Reached' : status === 'current' ? 'Next' : 'Upcoming'}
+                          </Text>
+                        </View>
+                      );
+                    })}
+                  </View>
+                </View>
+              )}
+
               {/* Proximity Ring + Distance */}
               <View style={styles.proximitySection}>
                 <ProximityRing progress={getProximityProgress()} size={160} strokeWidth={12}>
@@ -262,6 +348,18 @@ const HomeScreen = ({ navigation }: any) => {
                   <Text style={[styles.statPillLabel, { color: colors.textSecondary }]}>Duration</Text>
                   <Text style={[styles.statPillValue, { color: colors.text }]}>{formatElapsed(elapsed)}</Text>
                 </View>
+              </View>
+
+              <View style={[styles.sharePanel, { backgroundColor: colors.primary + '10', borderColor: colors.primary + '25' }]}>
+                <View style={styles.sharePanelText}>
+                  <Text style={[styles.shareTitle, { color: colors.text }]}>Safety sharing</Text>
+                  <Text style={[styles.shareDescription, { color: colors.textSecondary }]}>Share a temporary, coarse-location trip status with someone you trust.</Text>
+                </View>
+                {store.activeShare ? (
+                  <Button title="Revoke" variant="outline" size="small" onPress={handleRevokeShare} />
+                ) : (
+                  <Button title="Share" variant="primary" size="small" onPress={handleShareTrip} loading={isSharing} icon={<Icon name="share-outline" size={15} color="#FFFFFF" />} />
+                )}
               </View>
 
               {/* Actions */}
@@ -440,6 +538,16 @@ const getStyles = (colors: any, isDark: boolean) => StyleSheet.create({
   statusText: { fontSize: 11, fontWeight: '700', letterSpacing: 0.8, flex: 1 },
   destinationRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 16 },
   destinationName: { fontSize: 17, fontWeight: '700', color: colors.text, flex: 1 },
+  routeProgressSection: { marginBottom: 16, gap: 8 },
+  routeProgressHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  routeProgressLabel: { fontSize: 11, fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.6 },
+  routeProgressValue: { fontSize: 12, fontWeight: '700' },
+  routeProgressTrack: { height: 6, borderRadius: 3, overflow: 'hidden' },
+  routeProgressFill: { height: 6, borderRadius: 3 },
+  waypointList: { gap: 6 },
+  waypointRow: { flexDirection: 'row', alignItems: 'center', gap: 7 },
+  waypointName: { flex: 1, fontSize: 12, fontWeight: '600' },
+  waypointState: { fontSize: 10, fontWeight: '500' },
 
   // Proximity ring section
   proximitySection: { alignItems: 'center', marginBottom: 16 },
@@ -453,6 +561,10 @@ const getStyles = (colors: any, isDark: boolean) => StyleSheet.create({
   statPillLabel: { fontSize: 10, fontWeight: '600', letterSpacing: 0.5, textTransform: 'uppercase' },
   statPillValue: { fontSize: 15, fontWeight: '700' },
   statPillDivider: { width: 1, marginVertical: 4 },
+  sharePanel: { flexDirection: 'row', alignItems: 'center', gap: 10, borderWidth: 1, borderRadius: RADIUS.md, padding: 12, marginBottom: 16 },
+  sharePanelText: { flex: 1, gap: 3 },
+  shareTitle: { fontSize: 13, fontWeight: '700' },
+  shareDescription: { fontSize: 11, lineHeight: 15 },
 
   // Actions
   tripActions: { flexDirection: 'row', gap: 8 },

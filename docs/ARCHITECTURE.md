@@ -1,5 +1,7 @@
 # WakeWay Architecture Documentation
 
+> **Review note:** This document contains the original intended architecture and is not the current production-readiness source of truth. See [PRODUCTION_ARCHITECTURE_REVIEW.md](PRODUCTION_ARCHITECTURE_REVIEW.md) for the verified implementation map, current risks, target architecture, and prioritized change register.
+
 ## 📐 System Architecture Overview
 
 ```
@@ -218,25 +220,26 @@ App Lifecycle Changes
 ## 💾 Data Structure Design
 
 ### Trip Object
+
 ```typescript
 {
   // Identification
   id: "uuid-string",
-  
+
   // Destination Info
   destination: { latitude, longitude },
   destinationName: "Central Station",
   radiusMeters: 500,
-  
+
   // Trip Lifecycle
   startTime: 1711270000000,
   endTime: undefined,
   isActive: true,
-  
+
   // Alarm State
   alarmTriggered: false,
   alarmTriggerTime: undefined,
-  
+
   // Real-time Data
   currentLocation: { lat, lon, accuracy, ... },
   distanceToDestination: 1500,
@@ -244,6 +247,7 @@ App Lifecycle Changes
 ```
 
 ### Location Data
+
 ```typescript
 {
   latitude: number,
@@ -258,6 +262,7 @@ App Lifecycle Changes
 ```
 
 ### Trip History
+
 ```typescript
 {
   tripId: "uuid",
@@ -284,11 +289,11 @@ export const calculateDistance = (from, to) => {
   // Convert to radians
   const dLat = toRadians(to.latitude - from.latitude);
   const dLon = toRadians(to.longitude - from.longitude);
-  
+
   // Apply Haversine formula
   const a = sin²(dLat/2) + cos(lat1) × cos(lat2) × sin²(dLon/2);
   const c = 2 × atan2(√a, √(1-a));
-  
+
   return EARTH_RADIUS_METERS × c;
 };
 
@@ -302,7 +307,7 @@ export const calculateDistance = (from, to) => {
 export const isLocationJump = (prev, curr, deltaSeconds, maxSpeed = 100) => {
   const distance = calculateDistance(prev, curr);
   const speed = distance / deltaSeconds;
-  
+
   return speed > maxSpeed; // ~360 km/h
 };
 
@@ -346,6 +351,7 @@ if (isWithinRadius(location, trip.destination, trip.radius)) {
 ## 📱 Screen Lifecycle
 
 ### HomeScreen
+
 ```
 Mount
   ├─→ Check app state
@@ -358,6 +364,7 @@ Mount
 ```
 
 ### TripSetupScreen
+
 ```
 Mount
   ├─→ Receive destination from params
@@ -372,6 +379,7 @@ Mount
 ```
 
 ### MapScreen
+
 ```
 Mount
   ├─→ Get user location
@@ -388,6 +396,7 @@ Mount
 ```
 
 ### AlarmScreen
+
 ```
 Mount (when alarmTriggered = true)
   ├─→ Animate entrance
@@ -429,17 +438,19 @@ Mount (when alarmTriggered = true)
 ## ⚡ Performance Optimizations
 
 ### Location Throttling
+
 ```typescript
 // Prevent excessive updates
 requestLocationUpdates({
-  timeInterval: 15000,    // 15 seconds
-  distanceInterval: 10,   // 10 meters
+  timeInterval: 15000, // 15 seconds
+  distanceInterval: 10, // 10 meters
 });
 
 // Result: ~4 updates/minute vs possible 60/minute
 ```
 
 ### Selective Computation
+
 ```typescript
 // Only calculate distance when necessary
 if (store.isTrackingActive && store.activeTrip) {
@@ -448,6 +459,7 @@ if (store.isTrackingActive && store.activeTrip) {
 ```
 
 ### Efficient State Updates
+
 ```typescript
 // Use Zustand batch updates
 set((state) => ({
@@ -458,6 +470,7 @@ set((state) => ({
 ```
 
 ### Memory Management
+
 ```typescript
 // Clean up subscriptions
 useEffect(() => {
@@ -495,7 +508,7 @@ Error Category       | Handling
 ─────────────────────┼──────────────────────────
 Location Unavailable | Show error, disable trip
 Permission Denied    | Graceful degradation
-GPS Timeout         | Retry with backoff  
+GPS Timeout         | Retry with backoff
 Task Manager Error  | Log + notify user
 Notification Fail   | Fallback to sound only
 Storage Failure     | Cache in memory
@@ -507,6 +520,7 @@ Invalid Coordinates | Filter & ignore
 ## 🎨 UI/UX Patterns
 
 ### Loading States
+
 ```
 isLoadingLocation
   ├─→ On first load: Show spinner
@@ -515,6 +529,7 @@ isLoadingLocation
 ```
 
 ### Error Presentation
+
 ```
 user dismisses error
   → updateSettingsdelay 3 seconds
@@ -522,6 +537,7 @@ user dismisses error
 ```
 
 ### Animations
+
 ```
 Screen Transitions: Fade/slide
 Alarm Alert:       Scale + wobble
@@ -534,6 +550,7 @@ Button Interactions: Feedback ripple
 ## 📈 Future Architecture Improvements
 
 ### 1. Service Workers
+
 ```
 Move heavy computations to native module
   ├─→ Distance calculation
@@ -542,6 +559,7 @@ Move heavy computations to native module
 ```
 
 ### 2. Microservices Backend (Optional)
+
 ```
 ├─→ Trip analytics service
 ├─→ User management
@@ -550,6 +568,7 @@ Move heavy computations to native module
 ```
 
 ### 3. Offline-First Database
+
 ```
 SQLite for local storage
   ├─→ Replace AsyncStorage
@@ -557,6 +576,7 @@ SQLite for local storage
 ```
 
 ### 4. Custom Notifications Module
+
 ```
 Replace Expo Notifications with custom
   ├─→ More control over delivery
@@ -566,5 +586,5 @@ Replace Expo Notifications with custom
 
 ---
 
-*Last Updated: March 2024*
-*Architecture v1.0 - Production Ready*
+_Last Updated: March 2024_
+_Architecture v1.0 - Production Ready_

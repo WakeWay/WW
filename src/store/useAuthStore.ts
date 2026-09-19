@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { AppError } from '@/types';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { getApiUrl } from '@/config';
 
 export interface User {
   id: string;
@@ -28,10 +29,6 @@ interface AuthActions {
   resetOtpState: () => void;
 }
 
-// Ensure this matches your backend IP or localhost! 
-// Note: If testing on a physical android device, you may need to replace localhost with your computer's local IP address (e.g. 192.168.1.16)
-const API_URL = 'https://wakeway.onrender.com/api';
-
 const maskEmail = (email: string) => {
   const [name, domain] = email.split('@');
   return domain ? `${name.slice(0, 2)}***@${domain}` : 'invalid-email';
@@ -51,9 +48,8 @@ export const useAuthStore = create<AuthState & AuthActions>((set, get) => ({
 
   requestOtp: async (email, reason = 'login') => {
     set({ isLoading: true, error: null });
-    console.log('[OTP] Requesting code', { url: `${API_URL}/auth/request-otp`, email: maskEmail(email), reason });
     try {
-      const res = await fetch(`${API_URL}/auth/request-otp`, {
+      const res = await fetch(`${getApiUrl()}/auth/request-otp`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, reason }),
@@ -71,9 +67,9 @@ export const useAuthStore = create<AuthState & AuthActions>((set, get) => ({
 
   verifyOtp: async (email, otp) => {
     set({ isLoading: true, error: null });
-    console.log('[OTP] Verifying code', { url: `${API_URL}/auth/verify-otp`, email: maskEmail(email) });
+    console.log('[OTP] Verifying code', { email: maskEmail(email) });
     try {
-      const res = await fetch(`${API_URL}/auth/verify-otp`, {
+      const res = await fetch(`${getApiUrl()}/auth/verify-otp`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: email.trim(), otp: otp.trim() }),
@@ -123,7 +119,7 @@ export const useAuthStore = create<AuthState & AuthActions>((set, get) => ({
       const { user, token } = get();
       if (!user || !token) throw new Error('Not logged in');
 
-      const res = await fetch(`${API_URL}/auth/deactivate`, {
+      const res = await fetch(`${getApiUrl()}/auth/deactivate`, {
         method: 'POST',
         headers: { 
            'Content-Type': 'application/json',
