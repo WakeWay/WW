@@ -377,7 +377,7 @@ app.post('/api/trips/:tripId/share', extractUser, async (req: any, res: any) => 
   }
 });
 
-app.get('/api/share/:token', async (req, res) => {
+app.get('/share/:token', async (req, res) => {
   try {
     const shareRes = await query(`SELECT * FROM trip_shares WHERE token_hash = $1`, [hashShareToken(req.params.token)]);
     if (shareRes.rows.length === 0) return res.status(404).json({ error: 'Share link not found' });
@@ -390,19 +390,83 @@ app.get('/api/share/:token', async (req, res) => {
     const payload = await serializeShare(share);
     if (req.accepts('html')) {
       const latestEvent = payload.events[payload.events.length - 1];
-      const locationText = payload.lastKnownLocation
-        ? `${payload.lastKnownLocation.latitude.toFixed(3)}, ${payload.lastKnownLocation.longitude.toFixed(3)}`
-        : 'Waiting for the first location update';
+      const loc = payload.lastKnownLocation;
+      const hasLocation = loc && typeof loc.latitude === 'number' && typeof loc.longitude === 'number';
+
+      const mapsUrl = hasLocation
+        ? `https://www.google.com/maps?q=${loc.latitude},${loc.longitude}`
+        : null;
+      const mapsEmbed = hasLocation
+        ? `https://maps.google.com/maps?q=${loc.latitude},${loc.longitude}&z=14&output=embed`
+        : null;
+
+      const locationSection = hasLocation
+        ? `<div class="map-wrap">
+            <iframe
+              src="${mapsEmbed}"
+              width="100%" height="280" style="border:0;border-radius:12px;margin-top:12px"
+              allowfullscreen loading="lazy" referrerpolicy="no-referrer-when-downgrade">
+            </iframe>
+            <a class="maps-link" href="${mapsUrl}" target="_blank" rel="noopener">
+              📍 Open in Google Maps
+            </a>
+            <p class="approx-note">Location is intentionally approximate and updates every ~15 seconds.</p>
+          </div>`
+        : `<p class="waiting">📡 Waiting for first location update&hellip;</p>`;
+
+      const statusColor = payload.status === 'active' ? '#137a45' : payload.status === 'completed' ? '#1d4ed8' : '#b45309';
+      const statusBg   = payload.status === 'active' ? '#e7f8ef' : payload.status === 'completed' ? '#eff6ff' : '#fef3c7';
+
       res.type('html').send(`<!doctype html>
-        <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-        <meta http-equiv="refresh" content="30"><title>WakeWay trip status</title>
-        <style>body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:#f4f7fb;color:#172033;margin:0;padding:24px}main{max-width:520px;margin:0 auto;background:#fff;border:1px solid #dce3ee;border-radius:16px;padding:24px;box-shadow:0 8px 30px #17203314}h1{margin:0 0 8px;font-size:24px}p{color:#596579;line-height:1.5}.status{display:inline-block;background:#e7f8ef;color:#137a45;border-radius:999px;padding:6px 10px;font-weight:700;text-transform:capitalize}.row{border-top:1px solid #e8edf4;padding:14px 0}.label{font-size:12px;color:#718096;text-transform:uppercase;letter-spacing:.06em}.value{margin-top:4px;font-weight:600}</style></head>
-        <body><main><div class="status">${escapeHtml(payload.status)}</div><h1>WakeWay trip</h1>
-        <p>Shared destination: <strong>${escapeHtml(payload.destinationName)}</strong></p>
-        <div class="row"><div class="label">Latest event</div><div class="value">${escapeHtml(latestEvent?.type?.replace(/_/g, ' ') || 'Trip started')}</div></div>
-        <div class="row"><div class="label">Last known area</div><div class="value">${escapeHtml(locationText)}</div></div>
-        <div class="row"><div class="label">Link expires</div><div class="value">${escapeHtml(new Date(payload.expiresAt).toLocaleString())}</div></div>
-        <p>This page refreshes automatically. Location is intentionally approximate.</p></main></body></html>`);
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta http-equiv="refresh" content="15">
+  <title>WakeWay – ${escapeHtml(payload.destinationName)}</title>
+  <style>
+    *{box-sizing:border-box;margin:0;padding:0}
+    body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:#f4f7fb;color:#172033;padding:20px}
+    main{max-width:520px;margin:0 auto;background:#fff;border:1px solid #dce3ee;border-radius:20px;padding:24px;box-shadow:0 8px 30px #17203314}
+    h1{font-size:22px;font-weight:800;margin:8px 0 4px}
+    .subtitle{font-size:14px;color:#596579;margin-bottom:20px}
+    .status{display:inline-block;border-radius:999px;padding:5px 12px;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;margin-bottom:12px}
+    .row{border-top:1px solid #e8edf4;padding:14px 0}
+    .label{font-size:11px;color:#718096;text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px}
+    .value{font-weight:700;font-size:15px}
+    .map-wrap{margin-top:4px}
+    .maps-link{display:inline-block;margin-top:10px;font-size:14px;font-weight:600;color:#2563eb;text-decoration:none}
+    .maps-link:hover{text-decoration:underline}
+    .approx-note{font-size:11px;color:#94a3b8;margin-top:8px}
+    .waiting{color:#94a3b8;font-size:14px;margin-top:8px;font-style:italic}
+    .footer{font-size:11px;color:#cbd5e1;text-align:center;margin-top:20px}
+  </style>
+</head>
+<body>
+<main>
+  <div class="status" style="background:${statusBg};color:${statusColor}">${escapeHtml(payload.status)}</div>
+  <h1>WakeWay trip</h1>
+  <p class="subtitle">Travelling to <strong>${escapeHtml(payload.destinationName)}</strong></p>
+
+  <div class="row">
+    <div class="label">Last known area</div>
+    ${locationSection}
+  </div>
+
+  <div class="row">
+    <div class="label">Latest event</div>
+    <div class="value">${escapeHtml(latestEvent?.type?.replace(/_/g, ' ') || 'Trip started')}</div>
+  </div>
+
+  <div class="row">
+    <div class="label">Link expires</div>
+    <div class="value">${escapeHtml(new Date(payload.expiresAt).toLocaleString())}</div>
+  </div>
+
+  <p class="footer">Page auto-refreshes every 15 seconds &bull; Powered by WakeWay</p>
+</main>
+</body>
+</html>`);
       return;
     }
     res.json({ share: payload });
@@ -411,6 +475,9 @@ app.get('/api/share/:token', async (req, res) => {
     res.status(500).json({ error: 'Unable to load trip share' });
   }
 });
+
+// Keep /api/share/:token as an alias for backwards compatibility
+app.get('/api/share/:token', (req, res) => res.redirect(301, `/share/${req.params.token}`));
 
 app.patch('/api/trips/:tripId/share/:shareId', extractUser, async (req: any, res: any) => {
   try {
